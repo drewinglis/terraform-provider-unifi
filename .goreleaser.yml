@@ -12,21 +12,13 @@ builds:
       - -trimpath
     ldflags:
       - '-s -w -X main.version={{.Version}} -X main.commit={{.Commit}}'
+    # Only the platforms that run this fork: Terrakube's executor and laptops.
     goos:
-      - freebsd
-      - windows
       - linux
       - darwin
     goarch:
       - amd64
-      - '386'
-      - arm
       - arm64
-    ignore:
-      - goos: darwin
-        goarch: '386'
-      - goos: darwin
-        goarch: arm
     binary: '{{ .ProjectName }}_v{{ .Version }}'
 archives:
   - format: zip
@@ -47,9 +39,16 @@ signs:
       - "${signature}"
       - "--detach-sign"
       - "${artifact}"
+gitea_urls:
+  api: https://git.app.drw.io/api/v1
+  download: https://git.app.drw.io
+force_token: gitea
 release:
+  gitea:
+    owner: drewinglis
+    name: terraform-provider-unifi
   extra_files:
     - glob: 'terraform-registry-manifest.json'
       name_template: '{{ .ProjectName }}_{{ .Version }}_manifest.json'
 changelog:
-  use: github-native
+  disable: true
