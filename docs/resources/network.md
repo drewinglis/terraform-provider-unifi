@@ -23,6 +23,11 @@ resource "unifi_network" "iot" {
   dhcp_stop    = "10.0.100.254"
   dhcp_dns     = ["8.8.8.8", "8.8.4.4"]
   domain_name  = "iot.local"
+
+  # Let the controller size the DHCP range, and keep this network off the
+  # LTE failover connection.
+  auto_scale_enabled = true
+  lte_lan_enabled    = false
 }
 
 # Create a VLAN-only network (no routing/DHCP)
@@ -54,6 +59,7 @@ resource "unifi_network" "internet_2" {
 
 ### Optional
 
+- `auto_scale_enabled` (Boolean) Whether the controller sizes the DHCP range automatically from the subnet.
 - `dhcp_boot_enabled` (Boolean) Whether DHCP network boot (PXE) is enabled. When enabled, DHCP will provide boot options to clients.
 - `dhcp_boot_filename` (String) The boot filename to provide to clients (DHCP Option 67). This is the path to the boot file on the TFTP server.
 - `dhcp_boot_server` (String) The IP address of the PXE boot server (DHCP Option 66).
@@ -76,16 +82,19 @@ resource "unifi_network" "internet_2" {
 - `domain_name` (String) The domain name for this network.
 - `enabled` (Boolean) Whether the network is enabled. Defaults to true. Not used by WAN networks.
 - `firewall_zone_id` (String) The firewall zone ID to associate with this network. If not specified, the controller assigns a default zone.
+- `gateway_type` (String) Which device routes this network. Valid values: 'default' (the gateway), 'switch' (a Layer 3 switch). Computed by the controller when not set.
 - `igmp_proxy_upstream` (Boolean) Whether this network acts as an IGMP proxy upstream interface.
 - `igmp_snooping` (Boolean) Whether IGMP snooping is enabled. Defaults to false.
 - `internet_access_enabled` (Boolean) Whether internet access is enabled for this network. Defaults to true. Not used by WAN networks.
 - `intra_network_access_enabled` (Boolean) Whether devices on this network can communicate with devices on other networks.
 - `ipv6` (Attributes) IPv6 configuration for this network. Not used by WAN networks. (see [below for nested schema](#nestedatt--ipv6))
+- `lte_lan_enabled` (Boolean) Whether this network can use the LTE failover connection. Computed by the controller when not set.
 - `mac_override_enabled` (Boolean) Whether the WAN interface uses an overridden MAC address.
 - `mdns_enabled` (Boolean) Whether mDNS (Bonjour/Avahi) is enabled for this network. Computed by the controller when not set.
 - `nat_enabled` (Boolean) Whether NAT is enabled for this network. Defaults to true. Not used by WAN networks.
 - `network_group` (String) The network group. Valid values: 'LAN', 'WAN', 'WAN2'. Defaults to 'LAN'. WAN networks use wan_network_group instead.
 - `report_wan_event` (Boolean) Whether the controller reports events (e.g. failover) for this WAN.
+- `setting_preference` (String) Whether the network's settings are chosen automatically or set manually. Valid values: 'auto', 'manual'. Computed by the controller when not set.
 - `subnet` (String) The subnet in CIDR notation (e.g., '10.0.100.0/24').
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
 - `upnp_lan_enabled` (Boolean) Whether UPnP is enabled on this LAN network. Computed by the controller when not set.
