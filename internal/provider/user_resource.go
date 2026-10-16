@@ -27,25 +27,27 @@ type UserResource struct {
 }
 
 type UserResourceModel struct {
-	ID                    types.String   `tfsdk:"id"`
-	SiteID                types.String   `tfsdk:"site_id"`
-	MAC                   types.String   `tfsdk:"mac"`
-	Name                  types.String   `tfsdk:"name"`
-	Note                  types.String   `tfsdk:"note"`
-	Noted                 types.Bool     `tfsdk:"noted"`
-	UseFixedIP            types.Bool     `tfsdk:"use_fixed_ip"`
-	FixedIP               types.String   `tfsdk:"fixed_ip"`
-	NetworkID             types.String   `tfsdk:"network_id"`
-	LocalDnsRecord        types.String   `tfsdk:"local_dns_record"`
-	LocalDnsRecordEnabled types.Bool     `tfsdk:"local_dns_record_enabled"`
-	UsergroupID           types.String   `tfsdk:"usergroup_id"`
-	Blocked               types.Bool     `tfsdk:"blocked"`
-	IP                    types.String   `tfsdk:"ip"`
-	Hostname              types.String   `tfsdk:"hostname"`
-	OUI                   types.String   `tfsdk:"oui"`
-	FirstSeen             types.Int64    `tfsdk:"first_seen"`
-	LastSeen              types.Int64    `tfsdk:"last_seen"`
-	Timeouts              timeouts.Value `tfsdk:"timeouts"`
+	ID                            types.String   `tfsdk:"id"`
+	SiteID                        types.String   `tfsdk:"site_id"`
+	MAC                           types.String   `tfsdk:"mac"`
+	Name                          types.String   `tfsdk:"name"`
+	Note                          types.String   `tfsdk:"note"`
+	Noted                         types.Bool     `tfsdk:"noted"`
+	UseFixedIP                    types.Bool     `tfsdk:"use_fixed_ip"`
+	FixedIP                       types.String   `tfsdk:"fixed_ip"`
+	NetworkID                     types.String   `tfsdk:"network_id"`
+	LocalDnsRecord                types.String   `tfsdk:"local_dns_record"`
+	LocalDnsRecordEnabled         types.Bool     `tfsdk:"local_dns_record_enabled"`
+	UsergroupID                   types.String   `tfsdk:"usergroup_id"`
+	Blocked                       types.Bool     `tfsdk:"blocked"`
+	VirtualNetworkOverrideEnabled types.Bool     `tfsdk:"virtual_network_override_enabled"`
+	VirtualNetworkOverrideID      types.String   `tfsdk:"virtual_network_override_id"`
+	IP                            types.String   `tfsdk:"ip"`
+	Hostname                      types.String   `tfsdk:"hostname"`
+	OUI                           types.String   `tfsdk:"oui"`
+	FirstSeen                     types.Int64    `tfsdk:"first_seen"`
+	LastSeen                      types.Int64    `tfsdk:"last_seen"`
+	Timeouts                      timeouts.Value `tfsdk:"timeouts"`
 }
 
 func NewUserResource() resource.Resource {
@@ -169,6 +171,23 @@ func (r *UserResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"virtual_network_override_enabled": schema.BoolAttribute{
+				Description: "Whether to place this client on virtual_network_override_id instead of the " +
+					"network of the WLAN or switch port it connects through.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"virtual_network_override_id": schema.StringAttribute{
+				Description: "The network ID to place this client on when virtual_network_override_enabled is true.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
 				},
 			},
 			"ip": schema.StringAttribute{
@@ -393,6 +412,14 @@ func (r *UserResource) planToSDK(plan *UserResourceModel) *unifi.User {
 		user.Blocked = boolPtr(plan.Blocked.ValueBool())
 	}
 
+	if !plan.VirtualNetworkOverrideEnabled.IsNull() && !plan.VirtualNetworkOverrideEnabled.IsUnknown() {
+		user.VirtualNetworkOverrideEnabled = boolPtr(plan.VirtualNetworkOverrideEnabled.ValueBool())
+	}
+
+	if !plan.VirtualNetworkOverrideID.IsNull() && !plan.VirtualNetworkOverrideID.IsUnknown() {
+		user.VirtualNetworkOverrideID = plan.VirtualNetworkOverrideID.ValueString()
+	}
+
 	return user
 }
 
@@ -434,6 +461,14 @@ func (r *UserResource) sdkToState(user *unifi.User, state *UserResourceModel) di
 	} else {
 		state.Blocked = types.BoolNull()
 	}
+
+	if user.VirtualNetworkOverrideEnabled != nil {
+		state.VirtualNetworkOverrideEnabled = types.BoolValue(*user.VirtualNetworkOverrideEnabled)
+	} else {
+		state.VirtualNetworkOverrideEnabled = types.BoolNull()
+	}
+
+	state.VirtualNetworkOverrideID = stringValueOrNull(user.VirtualNetworkOverrideID)
 
 	state.IP = stringValueOrNull(user.IP)
 	state.Hostname = stringValueOrNull(user.Hostname)
