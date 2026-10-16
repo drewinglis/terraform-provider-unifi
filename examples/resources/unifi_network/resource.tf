@@ -9,6 +9,11 @@ resource "unifi_network" "iot" {
   dhcp_stop    = "10.0.100.254"
   dhcp_dns     = ["8.8.8.8", "8.8.4.4"]
   domain_name  = "iot.local"
+
+  # Let the controller size the DHCP range, and keep this network off the
+  # LTE failover connection.
+  auto_scale_enabled = true
+  lte_lan_enabled    = false
 }
 
 # Create a VLAN-only network (no routing/DHCP)

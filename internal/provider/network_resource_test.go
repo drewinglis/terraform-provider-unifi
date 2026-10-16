@@ -1161,3 +1161,53 @@ resource "unifi_network" "test" {
 }
 `, testAccProviderConfig, name, vlanID, vlanID%256, vlanID%256, vlanID%256)
 }
+
+func TestAccNetworkResource_autoScaleLteGateway(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccNetworkResourceConfig_autoScaleLteGateway("tf-acc-test-net-autoscale", 3927, true, false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_network.test", "auto_scale_enabled", "true"),
+					resource.TestCheckResourceAttr("unifi_network.test", "lte_lan_enabled", "false"),
+					resource.TestCheckResourceAttr("unifi_network.test", "gateway_type", "default"),
+					resource.TestCheckResourceAttr("unifi_network.test", "setting_preference", "manual"),
+				),
+			},
+			{
+				Config: testAccNetworkResourceConfig_autoScaleLteGateway("tf-acc-test-net-autoscale", 3927, false, true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_network.test", "auto_scale_enabled", "false"),
+					resource.TestCheckResourceAttr("unifi_network.test", "lte_lan_enabled", "true"),
+				),
+			},
+			{
+				ResourceName:      "unifi_network.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func testAccNetworkResourceConfig_autoScaleLteGateway(name string, vlanID int, autoScale, lteLAN bool) string {
+	return fmt.Sprintf(`
+%s
+
+resource "unifi_network" "test" {
+  name               = %q
+  purpose            = "corporate"
+  vlan_id            = %d
+  subnet             = "10.%d.0.1/24"
+  dhcp_enabled       = true
+  dhcp_start         = "10.%d.0.10"
+  dhcp_stop          = "10.%d.0.254"
+  auto_scale_enabled = %t
+  lte_lan_enabled    = %t
+  gateway_type       = "default"
+  setting_preference = "manual"
+}
+`, testAccProviderConfig, name, vlanID, vlanID%256, vlanID%256, vlanID%256, autoScale, lteLAN)
+}
