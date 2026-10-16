@@ -62,7 +62,7 @@ var endpointAttrTypes = map[string]attr.Type{
 	"ips":             types.SetType{ElemType: types.StringType},
 	"mac":             types.StringType,
 	"port":            types.StringType,
-	"network_id":      types.StringType,
+	"network_ids":     types.SetType{ElemType: types.StringType},
 	"client_macs":     types.SetType{ElemType: types.StringType},
 }
 
@@ -193,7 +193,7 @@ func (r *FirewallPolicyResource) Schema(ctx context.Context, req resource.Schema
 						Optional:    true,
 					},
 					"matching_target": schema.StringAttribute{
-						Description: "Matching target type. Valid values: 'ANY', 'CLIENT', 'EXTERNAL_SOURCE', 'IID', 'IP', 'MAC', 'NETWORK', 'REGION', 'USER_IDENTITY', 'USER_IDENTITY_ONE_CLICK_VPN', 'USER_IDENTITY_ONE_CLICK_WIFI', 'VPN_USER'. Auto-derived from sibling fields when unset: 'IP' if ips is non-empty, 'NETWORK' if network_id is non-empty, otherwise 'ANY'. (Unknown values from interpolation are treated as non-empty for derivation purposes.) Carrier fields for 'CLIENT', 'EXTERNAL_SOURCE', 'IID', 'MAC', 'USER_IDENTITY', 'USER_IDENTITY_ONE_CLICK_VPN', 'USER_IDENTITY_ONE_CLICK_WIFI', and 'VPN_USER' are not yet plumbed through the SDK — those values currently pass validation but cannot produce a working policy.",
+						Description: "Matching target type. Valid values: 'ANY', 'CLIENT', 'EXTERNAL_SOURCE', 'IID', 'IP', 'MAC', 'NETWORK', 'REGION', 'USER_IDENTITY', 'USER_IDENTITY_ONE_CLICK_VPN', 'USER_IDENTITY_ONE_CLICK_WIFI', 'VPN_USER'. Auto-derived from sibling fields when unset: 'IP' if ips is non-empty, 'NETWORK' if network_ids is non-empty, otherwise 'ANY'. (Unknown values from interpolation are treated as non-empty for derivation purposes.) Carrier fields for 'CLIENT', 'EXTERNAL_SOURCE', 'IID', 'MAC', 'USER_IDENTITY', 'USER_IDENTITY_ONE_CLICK_VPN', 'USER_IDENTITY_ONE_CLICK_WIFI', and 'VPN_USER' are not yet plumbed through the SDK — those values currently pass validation but cannot produce a working policy.",
 						Optional:    true,
 						Computed:    true,
 						Validators: []validator.String{
@@ -216,9 +216,10 @@ func (r *FirewallPolicyResource) Schema(ctx context.Context, req resource.Schema
 						Description: "Port or port range to match.",
 						Optional:    true,
 					},
-					"network_id": schema.StringAttribute{
-						Description: "Network ID to match.",
+					"network_ids": schema.SetAttribute{
+						Description: "Set of network IDs to match.",
 						Optional:    true,
+						ElementType: types.StringType,
 					},
 					"client_macs": schema.SetAttribute{
 						Description: "Set of client MAC addresses to match.",
@@ -236,7 +237,7 @@ func (r *FirewallPolicyResource) Schema(ctx context.Context, req resource.Schema
 						Optional:    true,
 					},
 					"matching_target": schema.StringAttribute{
-						Description: "Matching target type. Valid values: 'ANY', 'CLIENT', 'EXTERNAL_SOURCE', 'IID', 'IP', 'MAC', 'NETWORK', 'REGION', 'USER_IDENTITY', 'USER_IDENTITY_ONE_CLICK_VPN', 'USER_IDENTITY_ONE_CLICK_WIFI', 'VPN_USER'. Auto-derived from sibling fields when unset: 'IP' if ips is non-empty, 'NETWORK' if network_id is non-empty, otherwise 'ANY'. (Unknown values from interpolation are treated as non-empty for derivation purposes.) Carrier fields for 'CLIENT', 'EXTERNAL_SOURCE', 'IID', 'MAC', 'USER_IDENTITY', 'USER_IDENTITY_ONE_CLICK_VPN', 'USER_IDENTITY_ONE_CLICK_WIFI', and 'VPN_USER' are not yet plumbed through the SDK — those values currently pass validation but cannot produce a working policy.",
+						Description: "Matching target type. Valid values: 'ANY', 'CLIENT', 'EXTERNAL_SOURCE', 'IID', 'IP', 'MAC', 'NETWORK', 'REGION', 'USER_IDENTITY', 'USER_IDENTITY_ONE_CLICK_VPN', 'USER_IDENTITY_ONE_CLICK_WIFI', 'VPN_USER'. Auto-derived from sibling fields when unset: 'IP' if ips is non-empty, 'NETWORK' if network_ids is non-empty, otherwise 'ANY'. (Unknown values from interpolation are treated as non-empty for derivation purposes.) Carrier fields for 'CLIENT', 'EXTERNAL_SOURCE', 'IID', 'MAC', 'USER_IDENTITY', 'USER_IDENTITY_ONE_CLICK_VPN', 'USER_IDENTITY_ONE_CLICK_WIFI', and 'VPN_USER' are not yet plumbed through the SDK — those values currently pass validation but cannot produce a working policy.",
 						Optional:    true,
 						Computed:    true,
 						Validators: []validator.String{
@@ -259,9 +260,10 @@ func (r *FirewallPolicyResource) Schema(ctx context.Context, req resource.Schema
 						Description: "Port or port range to match.",
 						Optional:    true,
 					},
-					"network_id": schema.StringAttribute{
-						Description: "Network ID to match.",
+					"network_ids": schema.SetAttribute{
+						Description: "Set of network IDs to match.",
 						Optional:    true,
+						ElementType: types.StringType,
 					},
 					"client_macs": schema.SetAttribute{
 						Description: "Set of client MAC addresses to match.",
@@ -497,7 +499,7 @@ func (r *FirewallPolicyResource) ImportState(ctx context.Context, req resource.I
 // ModifyPlan auto-derives source.matching_target and destination.matching_target
 // from sibling fields when the user did not explicitly set them in config.
 //
-// UniFi's API silently discards `ips` and `network_id` when matching_target=ANY,
+// UniFi's API silently discards `ips` and `network_ids` when matching_target=ANY,
 // so a static "ANY" default would let users lose data on a plan that looks
 // cosmetic. Resolving here (instead of via a static default) means the plan
 // diff shows the real matching_target before approval.
@@ -584,11 +586,11 @@ func (r *FirewallPolicyResource) deriveEndpointMatchingTarget(ctx context.Contex
 	}
 
 	hasNetworkID := false
-	if v, ok := plannedAttrs["network_id"].(types.String); ok && !v.IsNull() {
+	if v, ok := plannedAttrs["network_ids"].(types.Set); ok && !v.IsNull() {
 		if v.IsUnknown() {
 			hasNetworkID = true
 		} else {
-			hasNetworkID = v.ValueString() != ""
+			hasNetworkID = len(v.Elements()) > 0
 		}
 	}
 
@@ -635,7 +637,7 @@ func matchingTargetTypeFor(matchingTarget string) string {
 }
 
 // ValidateConfig errors at plan time when the user explicitly sets
-// matching_target="ANY" alongside ips or network_id. UniFi silently discards
+// matching_target="ANY" alongside ips or network_ids. UniFi silently discards
 // those fields under matching_target=ANY, so this combination is always wrong.
 func (r *FirewallPolicyResource) ValidateConfig(ctx context.Context, req resource.ValidateConfigRequest, resp *resource.ValidateConfigResponse) {
 	var config FirewallPolicyResourceModel
@@ -667,8 +669,8 @@ func (r *FirewallPolicyResource) validateEndpointConfig(endpoint string, obj typ
 		hasIPs = v.IsUnknown() || len(v.Elements()) > 0
 	}
 	hasNetworkID := false
-	if v, ok := attrs["network_id"].(types.String); ok && !v.IsNull() {
-		hasNetworkID = v.IsUnknown() || v.ValueString() != ""
+	if v, ok := attrs["network_ids"].(types.Set); ok && !v.IsNull() {
+		hasNetworkID = v.IsUnknown() || len(v.Elements()) > 0
 	}
 
 	if hasIPs {
@@ -681,8 +683,8 @@ func (r *FirewallPolicyResource) validateEndpointConfig(endpoint string, obj typ
 	if hasNetworkID {
 		diags.AddAttributeError(
 			path.Root(endpoint).AtName("matching_target"),
-			"matching_target=\"ANY\" conflicts with network_id",
-			"The UniFi controller silently discards the network_id field when matching_target=\"ANY\". Either omit matching_target (it will be auto-derived to \"NETWORK\") or set matching_target=\"NETWORK\" explicitly.",
+			"matching_target=\"ANY\" conflicts with network_ids",
+			"The UniFi controller silently discards the network_ids field when matching_target=\"ANY\". Either omit matching_target (it will be auto-derived to \"NETWORK\") or set matching_target=\"NETWORK\" explicitly.",
 		)
 	}
 }
@@ -779,8 +781,13 @@ func (r *FirewallPolicyResource) endpointFromObject(ctx context.Context, obj typ
 	if v, ok := attrs["port"].(types.String); ok && !v.IsNull() {
 		endpoint.Port = v.ValueString()
 	}
-	if v, ok := attrs["network_id"].(types.String); ok && !v.IsNull() {
-		endpoint.NetworkID = v.ValueString()
+	if v, ok := attrs["network_ids"].(types.Set); ok && !v.IsNull() {
+		var networkIDs []string
+		diags.Append(v.ElementsAs(ctx, &networkIDs, false)...)
+		if diags.HasError() {
+			return nil
+		}
+		endpoint.NetworkIDs = networkIDs
 	}
 	if v, ok := attrs["ips"].(types.Set); ok && !v.IsNull() {
 		var ips []string
@@ -958,6 +965,18 @@ func (r *FirewallPolicyResource) endpointToObject(ctx context.Context, endpoint 
 		clientMacsVal = types.SetNull(types.StringType)
 	}
 
+	var networkIDsVal types.Set
+	if len(endpoint.NetworkIDs) > 0 {
+		networkIDsSet, d := types.SetValueFrom(ctx, types.StringType, endpoint.NetworkIDs)
+		diags.Append(d...)
+		if diags.HasError() {
+			return types.ObjectNull(endpointAttrTypes), diags
+		}
+		networkIDsVal = networkIDsSet
+	} else {
+		networkIDsVal = types.SetNull(types.StringType)
+	}
+
 	matchingTarget := endpoint.MatchingTarget
 	if matchingTarget == "" {
 		matchingTarget = "ANY"
@@ -969,7 +988,7 @@ func (r *FirewallPolicyResource) endpointToObject(ctx context.Context, endpoint 
 		"ips":             ipsVal,
 		"mac":             stringValueOrNull(endpoint.MAC),
 		"port":            stringValueOrNull(endpoint.Port),
-		"network_id":      stringValueOrNull(endpoint.NetworkID),
+		"network_ids":     networkIDsVal,
 		"client_macs":     clientMacsVal,
 	}
 
