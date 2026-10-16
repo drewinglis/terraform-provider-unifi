@@ -26,18 +26,29 @@ Manages port-specific configuration overrides on a UniFi device (switch). Use th
 - `autoneg` (Boolean) Enable auto-negotiation for speed and duplex.
 - `egress_rate_limit_kbps` (Number) Egress rate limit in Kbps. Set to 0 to disable.
 - `excluded_network_ids` (Set of String) Set of excluded network IDs for this port.
+- `forward` (String) VLAN forwarding mode for this port. Valid values: 'all' (all networks), 'native' (native network only), 'customize' (use native_network_id, tagged_vlan_mgmt and the tagged/excluded network IDs), 'disabled'.
 - `full_duplex` (Boolean) Enable full duplex (when autoneg is disabled).
 - `isolation` (Boolean) Enable port isolation.
+- `lldpmed_enabled` (Boolean) Enable LLDP-MED (Link Layer Discovery Protocol - Media Endpoint Discovery).
 - `name` (String) The name/label for this port.
 - `native_network_id` (String) The native (untagged) network ID for this port.
 - `op_mode` (String) Operation mode for this port. Valid values: 'switch', 'mirror', 'aggregate'.
 - `poe_mode` (String) PoE mode for this port. Valid values: 'auto', 'off', 'pasv24', 'passthrough'.
+- `port_keepalive_enabled` (Boolean) Enable port keepalive.
 - `port_profile_id` (String) The port profile ID to apply to this port. Use unifi_port_profile resource or data source.
 - `port_security_enabled` (Boolean) Enable port security (MAC address limiting).
 - `port_security_mac_addresses` (Set of String) Set of allowed MAC addresses when port security is enabled.
+- `setting_preference` (String) Whether the port uses its profile's settings ('auto') or the per-port settings in this override ('manual'). Valid values: 'auto', 'manual'. Defaults to 'manual' when not set on create.
 - `speed` (Number) Port speed in Mbps (when autoneg is disabled). Valid values: 10, 100, 1000, 2500, 10000.
+- `stormctrl_bcast_enabled` (Boolean) Enable broadcast storm control.
+- `stormctrl_bcast_rate` (Number) Broadcast storm control rate limit.
+- `stormctrl_mcast_enabled` (Boolean) Enable multicast storm control.
+- `stormctrl_mcast_rate` (Number) Multicast storm control rate limit.
+- `stormctrl_ucast_enabled` (Boolean) Enable unicast storm control.
+- `stormctrl_ucast_rate` (Number) Unicast storm control rate limit.
 - `stp_port_mode` (Boolean) Enable Spanning Tree Protocol on this port.
 - `tagged_network_ids` (Set of String) Set of tagged network IDs for this port.
+- `tagged_vlan_mgmt` (String) Tagged VLAN management mode. Valid values: 'auto' (allow all VLANs), 'block_all' (block all tagged VLANs), 'custom' (allow all except excluded).
 - `voice_network_id` (String) The voice network ID for this port.
 
 ### Read-Only
