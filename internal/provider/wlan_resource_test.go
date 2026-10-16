@@ -289,6 +289,49 @@ func TestAccWLANResource_privatePresharedKeys(t *testing.T) {
 	})
 }
 
+func TestAccWLANResource_rateAndDtim(t *testing.T) {
+	apGroupID := getDefaultAPGroupID(t)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWLANResourceConfig_rateAndDtim("tf-acc-test-wlan-rate", "TestPassword123!", apGroupID, 2, 6000),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_wlan.test", "minrate_setting_preference", "manual"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "minrate_ng_enabled", "true"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "minrate_ng_data_rate_kbps", "6000"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "minrate_ng_advertising_rates", "true"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "minrate_na_enabled", "true"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "minrate_na_data_rate_kbps", "12000"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "dtim_mode", "custom"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "dtim_ng", "2"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "dtim_na", "2"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "no2ghz_oui", "true"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "mcastenhance_enabled", "true"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "iapp_enabled", "false"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "group_rekey", "3600"),
+				),
+			},
+			{
+				Config: testAccWLANResourceConfig_rateAndDtim("tf-acc-test-wlan-rate", "TestPassword123!", apGroupID, 3, 12000),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_wlan.test", "minrate_ng_data_rate_kbps", "12000"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "dtim_ng", "3"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "dtim_na", "3"),
+				),
+			},
+			{
+				ResourceName:            "unifi_wlan.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"passphrase"},
+			},
+		},
+	})
+}
+
 func testAccWLANResourceConfig_basic(name, passphrase, apGroupID string) string {
 	return fmt.Sprintf(`
 %s
@@ -466,4 +509,30 @@ resource "unifi_wlan" "test" {
   ]
 }
 `, testAccProviderConfig, name, vlan, vlan%256, vlan%256, vlan%256, name, passphrase, apGroupID)
+}
+
+func testAccWLANResourceConfig_rateAndDtim(name, passphrase, apGroupID string, dtim, ngRateKbps int) string {
+	return fmt.Sprintf(`
+%s
+
+resource "unifi_wlan" "test" {
+  name                         = %q
+  security                     = "wpapsk"
+  passphrase                   = %q
+  ap_group_ids                 = [%q]
+  minrate_setting_preference   = "manual"
+  minrate_ng_enabled           = true
+  minrate_ng_data_rate_kbps    = %d
+  minrate_ng_advertising_rates = true
+  minrate_na_enabled           = true
+  minrate_na_data_rate_kbps    = 12000
+  dtim_mode                    = "custom"
+  dtim_ng                      = %d
+  dtim_na                      = %d
+  no2ghz_oui                   = true
+  mcastenhance_enabled         = true
+  iapp_enabled                 = false
+  group_rekey                  = 3600
+}
+`, testAccProviderConfig, name, passphrase, apGroupID, ngRateKbps, dtim, dtim)
 }
