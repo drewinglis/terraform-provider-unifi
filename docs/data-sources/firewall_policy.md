@@ -61,11 +61,13 @@ output "policy_action" {
 Read-Only:
 
 - `client_macs` (Set of String) Set of client MAC addresses to match.
+- `ip_group_id` (String) ID of the firewall address group to match.
 - `ips` (Set of String) Set of IP addresses or CIDR ranges to match.
 - `mac` (String) MAC address to match.
 - `matching_target` (String) Matching target type.
 - `network_ids` (Set of String) Set of network IDs to match.
 - `port` (String) Port or port range to match.
+- `port_group_id` (String) ID of the firewall port group to match.
 - `zone_id` (String) The destination zone ID.
 
 
@@ -90,9 +92,11 @@ Read-Only:
 Read-Only:
 
 - `client_macs` (Set of String) Set of client MAC addresses to match.
+- `ip_group_id` (String) ID of the firewall address group to match.
 - `ips` (Set of String) Set of IP addresses or CIDR ranges to match.
 - `mac` (String) MAC address to match.
 - `matching_target` (String) Matching target type.
 - `network_ids` (Set of String) Set of network IDs to match.
 - `port` (String) Port or port range to match.
+- `port_group_id` (String) ID of the firewall port group to match.
 - `zone_id` (String) The source zone ID.

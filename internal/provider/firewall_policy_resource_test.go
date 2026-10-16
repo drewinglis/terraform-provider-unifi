@@ -803,3 +803,73 @@ resource "unifi_firewall_policy" "test" {
 }
 `, testAccProviderConfig, name, name, name, name, name)
 }
+
+func TestAccFirewallPolicyResource_groupRefs(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccCheckControllerSupportsZones(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyResourceConfig_groupRefs("tf-acc-test-policy-group-refs"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_firewall_policy.test", "destination.matching_target", "IP"),
+					resource.TestCheckResourceAttrPair(
+						"unifi_firewall_policy.test", "destination.ip_group_id",
+						"unifi_firewall_group.addresses", "id",
+					),
+					resource.TestCheckResourceAttrPair(
+						"unifi_firewall_policy.test", "destination.port_group_id",
+						"unifi_firewall_group.ports", "id",
+					),
+				),
+			},
+			{
+				ResourceName:      "unifi_firewall_policy.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func testAccFirewallPolicyResourceConfig_groupRefs(name string) string {
+	return fmt.Sprintf(`
+%s
+
+resource "unifi_firewall_group" "addresses" {
+  name       = "%s-addresses"
+  group_type = "address-group"
+  members    = ["192.0.2.10", "192.0.2.11"]
+}
+
+resource "unifi_firewall_group" "ports" {
+  name       = "%s-ports"
+  group_type = "port-group"
+  members    = ["80", "443"]
+}
+
+resource "unifi_firewall_zone" "source" {
+  name = "%s-src-zone"
+}
+
+resource "unifi_firewall_zone" "destination" {
+  name = "%s-dst-zone"
+}
+
+resource "unifi_firewall_policy" "test" {
+  name     = %q
+  action   = "ALLOW"
+  protocol = "tcp"
+
+  source = {
+    zone_id = unifi_firewall_zone.source.id
+  }
+
+  destination = {
+    zone_id       = unifi_firewall_zone.destination.id
+    ip_group_id   = unifi_firewall_group.addresses.id
+    port_group_id = unifi_firewall_group.ports.id
+  }
+}
+`, testAccProviderConfig, name, name, name, name, name)
+}
