@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
+	"github.com/hashicorp/terraform-plugin-framework/types/basetypes"
 	"github.com/resnickio/unifi-go-sdk/pkg/unifi"
 )
 
@@ -42,6 +43,8 @@ type DeviceResourceModel struct {
 	SNMPLocation               types.String   `tfsdk:"snmp_location"`
 	RadioOverrides             types.List     `tfsdk:"radio_overrides"`
 	OutletOverrides            types.List     `tfsdk:"outlet_overrides"`
+	MgmtNetworkID              types.String   `tfsdk:"mgmt_network_id"`
+	ConfigNetwork              types.Object   `tfsdk:"config_network"`
 	SiteID                     types.String   `tfsdk:"site_id"`
 	Model                      types.String   `tfsdk:"model"`
 	Type                       types.String   `tfsdk:"type"`
@@ -105,6 +108,28 @@ type outletOverride struct {
 	Name         *string `json:"name,omitempty"`
 	RelayState   *bool   `json:"relay_state,omitempty"`
 	CycleEnabled *bool   `json:"cycle_enabled,omitempty"`
+}
+
+type DeviceConfigNetworkModel struct {
+	Type           types.String `tfsdk:"type"`
+	IP             types.String `tfsdk:"ip"`
+	Netmask        types.String `tfsdk:"netmask"`
+	Gateway        types.String `tfsdk:"gateway"`
+	DNS1           types.String `tfsdk:"dns1"`
+	DNS2           types.String `tfsdk:"dns2"`
+	DNSSuffix      types.String `tfsdk:"dnssuffix"`
+	BondingEnabled types.Bool   `tfsdk:"bonding_enabled"`
+}
+
+var deviceConfigNetworkAttrTypes = map[string]attr.Type{
+	"type":            types.StringType,
+	"ip":              types.StringType,
+	"netmask":         types.StringType,
+	"gateway":         types.StringType,
+	"dns1":            types.StringType,
+	"dns2":            types.StringType,
+	"dnssuffix":       types.StringType,
+	"bonding_enabled": types.BoolType,
 }
 
 func NewDeviceResource() resource.Resource {
@@ -316,6 +341,85 @@ func (r *DeviceResource) Schema(ctx context.Context, req resource.SchemaRequest,
 							PlanModifiers: []planmodifier.Bool{
 								boolplanmodifier.UseStateForUnknown(),
 							},
+						},
+					},
+				},
+			},
+			"mgmt_network_id": schema.StringAttribute{
+				Description: "The ID of the network (VLAN) the device uses for management traffic.",
+				Optional:    true,
+				Computed:    true,
+			},
+			"config_network": schema.SingleNestedAttribute{
+				Description: "Management IP configuration of the device.",
+				Optional:    true,
+				Computed:    true,
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{
+						Description: "Management IP assignment. Valid values: 'dhcp', 'static'.",
+						Optional:    true,
+						Computed:    true,
+						Validators: []validator.String{
+							stringvalidator.OneOf("dhcp", "static"),
+						},
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"ip": schema.StringAttribute{
+						Description: "Static management IP address.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"netmask": schema.StringAttribute{
+						Description: "Static management netmask.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"gateway": schema.StringAttribute{
+						Description: "Static management gateway.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"dns1": schema.StringAttribute{
+						Description: "Primary DNS server for static management IP.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"dns2": schema.StringAttribute{
+						Description: "Secondary DNS server for static management IP.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"dnssuffix": schema.StringAttribute{
+						Description: "DNS suffix for static management IP.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.String{
+							stringplanmodifier.UseStateForUnknown(),
+						},
+					},
+					"bonding_enabled": schema.BoolAttribute{
+						Description: "Enable link aggregation (bonding) of the device's uplinks.",
+						Optional:    true,
+						Computed:    true,
+						PlanModifiers: []planmodifier.Bool{
+							boolplanmodifier.UseStateForUnknown(),
 						},
 					},
 				},
@@ -596,6 +700,40 @@ func (r *DeviceResource) planToSDK(ctx context.Context, plan *DeviceResourceMode
 		device.OutletOverrides = raw
 	}
 
+	if !plan.MgmtNetworkID.IsNull() && !plan.MgmtNetworkID.IsUnknown() {
+		device.MgmtNetworkID = plan.MgmtNetworkID.ValueString()
+	}
+
+	if !plan.ConfigNetwork.IsNull() && !plan.ConfigNetwork.IsUnknown() {
+		var cn DeviceConfigNetworkModel
+		diags.Append(plan.ConfigNetwork.As(ctx, &cn, basetypes.ObjectAsOptions{})...)
+		device.ConfigNetwork = &unifi.DeviceConfigNetwork{}
+		if !cn.Type.IsNull() && !cn.Type.IsUnknown() {
+			device.ConfigNetwork.Type = cn.Type.ValueString()
+		}
+		if !cn.IP.IsNull() && !cn.IP.IsUnknown() {
+			device.ConfigNetwork.IP = cn.IP.ValueString()
+		}
+		if !cn.Netmask.IsNull() && !cn.Netmask.IsUnknown() {
+			device.ConfigNetwork.Netmask = cn.Netmask.ValueString()
+		}
+		if !cn.Gateway.IsNull() && !cn.Gateway.IsUnknown() {
+			device.ConfigNetwork.Gateway = cn.Gateway.ValueString()
+		}
+		if !cn.DNS1.IsNull() && !cn.DNS1.IsUnknown() {
+			device.ConfigNetwork.DNS1 = cn.DNS1.ValueString()
+		}
+		if !cn.DNS2.IsNull() && !cn.DNS2.IsUnknown() {
+			device.ConfigNetwork.DNS2 = cn.DNS2.ValueString()
+		}
+		if !cn.DNSSuffix.IsNull() && !cn.DNSSuffix.IsUnknown() {
+			device.ConfigNetwork.DNSSuffix = cn.DNSSuffix.ValueString()
+		}
+		if !cn.BondingEnabled.IsNull() && !cn.BondingEnabled.IsUnknown() {
+			device.ConfigNetwork.BondingEnabled = boolPtr(cn.BondingEnabled.ValueBool())
+		}
+	}
+
 	return device
 }
 
@@ -663,6 +801,24 @@ func (r *DeviceResource) sdkToState(ctx context.Context, device *unifi.DeviceCon
 	state.LedOverrideColor = stringValueOrNull(device.LedOverrideColor)
 	state.SNMPContact = stringValueOrNull(device.SNMPContact)
 	state.SNMPLocation = stringValueOrNull(device.SNMPLocation)
+	state.MgmtNetworkID = stringValueOrNull(device.MgmtNetworkID)
+
+	if cn := device.ConfigNetwork; cn != nil {
+		obj, d := types.ObjectValue(deviceConfigNetworkAttrTypes, map[string]attr.Value{
+			"type":            stringValueOrNull(cn.Type),
+			"ip":              stringValueOrNull(cn.IP),
+			"netmask":         stringValueOrNull(cn.Netmask),
+			"gateway":         stringValueOrNull(cn.Gateway),
+			"dns1":            stringValueOrNull(cn.DNS1),
+			"dns2":            stringValueOrNull(cn.DNS2),
+			"dnssuffix":       stringValueOrNull(cn.DNSSuffix),
+			"bonding_enabled": types.BoolPointerValue(cn.BondingEnabled),
+		})
+		diags.Append(d...)
+		state.ConfigNetwork = obj
+	} else {
+		state.ConfigNetwork = types.ObjectNull(deviceConfigNetworkAttrTypes)
+	}
 
 	if device.LedOverrideColorBrightness != nil {
 		state.LedOverrideColorBrightness = types.Int64Value(int64(*device.LedOverrideColorBrightness))
