@@ -2,16 +2,20 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-framework-timeouts/resource/timeouts"
+	"github.com/hashicorp/terraform-plugin-framework-validators/setvalidator"
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/setplanmodifier"
@@ -32,37 +36,54 @@ type WLANResource struct {
 }
 
 type WLANResourceModel struct {
-	ID               types.String   `tfsdk:"id"`
-	SiteID           types.String   `tfsdk:"site_id"`
-	Name             types.String   `tfsdk:"name"`
-	Enabled          types.Bool     `tfsdk:"enabled"`
-	Security         types.String   `tfsdk:"security"`
-	WPAMode          types.String   `tfsdk:"wpa_mode"`
-	WPAEnc           types.String   `tfsdk:"wpa_enc"`
-	Passphrase       types.String   `tfsdk:"passphrase"`
-	NetworkID        types.String   `tfsdk:"network_id"`
-	UserGroupID      types.String   `tfsdk:"user_group_id"`
-	APGroupIDs       types.Set      `tfsdk:"ap_group_ids"`
-	IsGuest          types.Bool     `tfsdk:"is_guest"`
-	HideSsid         types.Bool     `tfsdk:"hide_ssid"`
-	WLANBand         types.String   `tfsdk:"wlan_band"`
-	WLANBands        types.Set      `tfsdk:"wlan_bands"`
-	Vlan             types.Int64    `tfsdk:"vlan"`
-	VlanEnabled      types.Bool     `tfsdk:"vlan_enabled"`
-	MacFilterEnabled types.Bool     `tfsdk:"mac_filter_enabled"`
-	MacFilterList    types.Set      `tfsdk:"mac_filter_list"`
-	MacFilterPolicy  types.String   `tfsdk:"mac_filter_policy"`
-	ScheduleEnabled  types.Bool     `tfsdk:"schedule_enabled"`
-	Schedule         types.Set      `tfsdk:"schedule"`
-	L2Isolation      types.Bool     `tfsdk:"l2_isolation"`
-	FastRoaming      types.Bool     `tfsdk:"fast_roaming_enabled"`
-	ProxyArp         types.Bool     `tfsdk:"proxy_arp"`
-	BssTransition    types.Bool     `tfsdk:"bss_transition"`
-	Uapsd            types.Bool     `tfsdk:"uapsd_enabled"`
-	PmfMode          types.String   `tfsdk:"pmf_mode"`
-	WPA3Support      types.Bool     `tfsdk:"wpa3_support"`
-	WPA3Transition   types.Bool     `tfsdk:"wpa3_transition"`
-	Timeouts         timeouts.Value `tfsdk:"timeouts"`
+	ID                          types.String   `tfsdk:"id"`
+	SiteID                      types.String   `tfsdk:"site_id"`
+	Name                        types.String   `tfsdk:"name"`
+	Enabled                     types.Bool     `tfsdk:"enabled"`
+	Security                    types.String   `tfsdk:"security"`
+	WPAMode                     types.String   `tfsdk:"wpa_mode"`
+	WPAEnc                      types.String   `tfsdk:"wpa_enc"`
+	Passphrase                  types.String   `tfsdk:"passphrase"`
+	NetworkID                   types.String   `tfsdk:"network_id"`
+	UserGroupID                 types.String   `tfsdk:"user_group_id"`
+	APGroupIDs                  types.Set      `tfsdk:"ap_group_ids"`
+	IsGuest                     types.Bool     `tfsdk:"is_guest"`
+	HideSsid                    types.Bool     `tfsdk:"hide_ssid"`
+	WLANBand                    types.String   `tfsdk:"wlan_band"`
+	WLANBands                   types.Set      `tfsdk:"wlan_bands"`
+	Vlan                        types.Int64    `tfsdk:"vlan"`
+	VlanEnabled                 types.Bool     `tfsdk:"vlan_enabled"`
+	MacFilterEnabled            types.Bool     `tfsdk:"mac_filter_enabled"`
+	MacFilterList               types.Set      `tfsdk:"mac_filter_list"`
+	MacFilterPolicy             types.String   `tfsdk:"mac_filter_policy"`
+	ScheduleEnabled             types.Bool     `tfsdk:"schedule_enabled"`
+	Schedule                    types.Set      `tfsdk:"schedule"`
+	L2Isolation                 types.Bool     `tfsdk:"l2_isolation"`
+	FastRoaming                 types.Bool     `tfsdk:"fast_roaming_enabled"`
+	ProxyArp                    types.Bool     `tfsdk:"proxy_arp"`
+	BssTransition               types.Bool     `tfsdk:"bss_transition"`
+	Uapsd                       types.Bool     `tfsdk:"uapsd_enabled"`
+	PmfMode                     types.String   `tfsdk:"pmf_mode"`
+	WPA3Support                 types.Bool     `tfsdk:"wpa3_support"`
+	WPA3Transition              types.Bool     `tfsdk:"wpa3_transition"`
+	PrivatePresharedKeysEnabled types.Bool     `tfsdk:"private_preshared_keys_enabled"`
+	PrivatePresharedKeys        types.Set      `tfsdk:"private_preshared_keys"`
+	Timeouts                    timeouts.Value `tfsdk:"timeouts"`
+}
+
+type WLANPrivatePresharedKeyModel struct {
+	Password  types.String `tfsdk:"password"`
+	NetworkID types.String `tfsdk:"network_id"`
+}
+
+var wlanPrivatePresharedKeyAttrTypes = map[string]attr.Type{
+	"password":   types.StringType,
+	"network_id": types.StringType,
+}
+
+type wlanPrivatePresharedKeyJSON struct {
+	Password      string `json:"password"`
+	NetworkConfID string `json:"networkconf_id"`
 }
 
 func NewWLANResource() resource.Resource {
@@ -276,6 +297,41 @@ func (r *WLANResource) Schema(ctx context.Context, req resource.SchemaRequest, r
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(false),
+			},
+			"private_preshared_keys_enabled": schema.BoolAttribute{
+				Description: "Whether private pre-shared keys (PPSK) are enabled, letting each passphrase in " +
+					"private_preshared_keys place clients on its own network.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"private_preshared_keys": schema.SetNestedAttribute{
+				Description: "Set of private pre-shared keys. A client that connects with one of these " +
+					"passphrases is placed on the key's network instead of network_id. Must contain at least " +
+					"one key when set; the controller cannot be told to clear the list.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.Set{
+					setplanmodifier.UseStateForUnknown(),
+				},
+				Validators: []validator.Set{
+					setvalidator.SizeAtLeast(1),
+				},
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"password": schema.StringAttribute{
+							Description: "The passphrase for this key.",
+							Required:    true,
+							Sensitive:   true,
+						},
+						"network_id": schema.StringAttribute{
+							Description: "The network ID clients using this passphrase are placed on.",
+							Required:    true,
+						},
+					},
+				},
 			},
 		},
 		Blocks: map[string]schema.Block{
@@ -540,7 +596,69 @@ func (r *WLANResource) planToSDK(ctx context.Context, plan *WLANResourceModel, d
 		wlan.Schedule = schedule
 	}
 
+	if !plan.PrivatePresharedKeysEnabled.IsNull() && !plan.PrivatePresharedKeysEnabled.IsUnknown() {
+		wlan.PrivatePresharedKeysEnabled = boolPtr(plan.PrivatePresharedKeysEnabled.ValueBool())
+	}
+
+	if !plan.PrivatePresharedKeys.IsNull() && !plan.PrivatePresharedKeys.IsUnknown() {
+		var keys []WLANPrivatePresharedKeyModel
+		diags.Append(plan.PrivatePresharedKeys.ElementsAs(ctx, &keys, false)...)
+		if diags.HasError() {
+			return nil
+		}
+		raw, err := wlanPrivatePresharedKeysToSDK(keys)
+		if err != nil {
+			diags.AddError("Error encoding private pre-shared keys", err.Error())
+			return nil
+		}
+		wlan.PrivatePresharedKeys = raw
+	}
+
 	return wlan
+}
+
+func wlanPrivatePresharedKeysToSDK(keys []WLANPrivatePresharedKeyModel) ([]json.RawMessage, error) {
+	raw := make([]json.RawMessage, 0, len(keys))
+	for _, k := range keys {
+		b, err := json.Marshal(wlanPrivatePresharedKeyJSON{
+			Password:      k.Password.ValueString(),
+			NetworkConfID: k.NetworkID.ValueString(),
+		})
+		if err != nil {
+			return nil, err
+		}
+		raw = append(raw, b)
+	}
+	return raw, nil
+}
+
+func wlanPrivatePresharedKeysFromSDK(raw []json.RawMessage) (types.Set, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	elemType := types.ObjectType{AttrTypes: wlanPrivatePresharedKeyAttrTypes}
+
+	if len(raw) == 0 {
+		return types.SetNull(elemType), diags
+	}
+
+	elements := make([]attr.Value, 0, len(raw))
+	for i, r := range raw {
+		var k wlanPrivatePresharedKeyJSON
+		if err := json.Unmarshal(r, &k); err != nil {
+			diags.AddError("Error decoding private pre-shared key",
+				fmt.Sprintf("private_preshared_keys[%d]: %s", i, err))
+			return types.SetNull(elemType), diags
+		}
+		obj, d := types.ObjectValue(wlanPrivatePresharedKeyAttrTypes, map[string]attr.Value{
+			"password":   types.StringValue(k.Password),
+			"network_id": types.StringValue(k.NetworkConfID),
+		})
+		diags.Append(d...)
+		elements = append(elements, obj)
+	}
+
+	set, d := types.SetValue(elemType, elements)
+	diags.Append(d...)
+	return set, diags
 }
 
 func (r *WLANResource) sdkToState(ctx context.Context, wlan *unifi.WLANConf, state *WLANResourceModel, priorState *WLANResourceModel) diag.Diagnostics {
@@ -644,6 +762,19 @@ func (r *WLANResource) sdkToState(ctx context.Context, wlan *unifi.WLANConf, sta
 	state.PmfMode = types.StringValue(wlan.PmfMode)
 	state.WPA3Support = types.BoolValue(derefBool(wlan.WPA3Support))
 	state.WPA3Transition = types.BoolValue(derefBool(wlan.WPA3Transition))
+
+	if wlan.PrivatePresharedKeysEnabled != nil {
+		state.PrivatePresharedKeysEnabled = types.BoolValue(*wlan.PrivatePresharedKeysEnabled)
+	} else {
+		state.PrivatePresharedKeysEnabled = types.BoolNull()
+	}
+
+	ppsks, d := wlanPrivatePresharedKeysFromSDK(wlan.PrivatePresharedKeys)
+	diags.Append(d...)
+	if diags.HasError() {
+		return diags
+	}
+	state.PrivatePresharedKeys = ppsks
 
 	return diags
 }

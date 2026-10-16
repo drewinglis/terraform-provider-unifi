@@ -35,6 +35,24 @@ resource "unifi_wlan" "secure" {
   pmf_mode = "required"
 }
 
+# Use private pre-shared keys to put clients on different networks by passphrase
+resource "unifi_wlan" "iot" {
+  name         = "IoT"
+  security     = "wpapsk"
+  wpa_mode     = "wpa2"
+  passphrase   = var.wifi_password
+  ap_group_ids = [data.unifi_ap_group.default.id]
+  network_id   = unifi_network.main.id
+
+  private_preshared_keys_enabled = true
+  private_preshared_keys = [
+    {
+      password   = var.iot_cameras_password
+      network_id = unifi_network.cameras.id
+    },
+  ]
+}
+
 variable "wifi_password" {
   type      = string
   sensitive = true
@@ -50,8 +68,19 @@ variable "secure_wifi_password" {
   sensitive = true
 }
 
+variable "iot_cameras_password" {
+  type      = string
+  sensitive = true
+}
+
 resource "unifi_network" "main" {
   name    = "Main Network"
   purpose = "corporate"
   vlan_id = 1
+}
+
+resource "unifi_network" "cameras" {
+  name    = "Cameras"
+  purpose = "corporate"
+  vlan_id = 30
 }
