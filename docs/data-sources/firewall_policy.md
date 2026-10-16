@@ -64,7 +64,7 @@ Read-Only:
 - `ips` (Set of String) Set of IP addresses or CIDR ranges to match.
 - `mac` (String) MAC address to match.
 - `matching_target` (String) Matching target type.
-- `network_id` (String) Network ID to match.
+- `network_ids` (Set of String) Set of network IDs to match.
 - `port` (String) Port or port range to match.
 - `zone_id` (String) The destination zone ID.
 
@@ -93,6 +93,6 @@ Read-Only:
 - `ips` (Set of String) Set of IP addresses or CIDR ranges to match.
 - `mac` (String) MAC address to match.
 - `matching_target` (String) Matching target type.
-- `network_id` (String) Network ID to match.
+- `network_ids` (Set of String) Set of network IDs to match.
 - `port` (String) Port or port range to match.
 - `zone_id` (String) The source zone ID.

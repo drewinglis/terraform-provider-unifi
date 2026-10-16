@@ -135,9 +135,10 @@ func (d *FirewallPolicyDataSource) Schema(ctx context.Context, req datasource.Sc
 						Description: "Port or port range to match.",
 						Computed:    true,
 					},
-					"network_id": schema.StringAttribute{
-						Description: "Network ID to match.",
+					"network_ids": schema.SetAttribute{
+						Description: "Set of network IDs to match.",
 						Computed:    true,
+						ElementType: types.StringType,
 					},
 					"client_macs": schema.SetAttribute{
 						Description: "Set of client MAC addresses to match.",
@@ -171,9 +172,10 @@ func (d *FirewallPolicyDataSource) Schema(ctx context.Context, req datasource.Sc
 						Description: "Port or port range to match.",
 						Computed:    true,
 					},
-					"network_id": schema.StringAttribute{
-						Description: "Network ID to match.",
+					"network_ids": schema.SetAttribute{
+						Description: "Set of network IDs to match.",
 						Computed:    true,
+						ElementType: types.StringType,
 					},
 					"client_macs": schema.SetAttribute{
 						Description: "Set of client MAC addresses to match.",
@@ -409,13 +411,25 @@ func (d *FirewallPolicyDataSource) endpointToObject(ctx context.Context, endpoin
 		clientMacsVal = types.SetNull(types.StringType)
 	}
 
+	var networkIDsVal types.Set
+	if len(endpoint.NetworkIDs) > 0 {
+		networkIDsSet, d := types.SetValueFrom(ctx, types.StringType, endpoint.NetworkIDs)
+		diags.Append(d...)
+		if diags.HasError() {
+			return types.ObjectNull(endpointAttrTypes), diags
+		}
+		networkIDsVal = networkIDsSet
+	} else {
+		networkIDsVal = types.SetNull(types.StringType)
+	}
+
 	attrs := map[string]attr.Value{
 		"zone_id":         stringValueOrNull(endpoint.ZoneID),
 		"matching_target": stringValueOrNull(endpoint.MatchingTarget),
 		"ips":             ipsVal,
 		"mac":             stringValueOrNull(endpoint.MAC),
 		"port":            stringValueOrNull(endpoint.Port),
-		"network_id":      stringValueOrNull(endpoint.NetworkID),
+		"network_ids":     networkIDsVal,
 		"client_macs":     clientMacsVal,
 	}
 

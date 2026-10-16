@@ -42,3 +42,18 @@ resource "unifi_firewall_policy" "allow_https" {
     port    = "443"
   }
 }
+
+# Block guest and IoT networks from reaching the servers zone
+resource "unifi_firewall_policy" "block_untrusted_networks" {
+  name   = "Block untrusted networks"
+  action = "BLOCK"
+
+  source = {
+    zone_id     = unifi_firewall_zone.iot.id
+    network_ids = [unifi_network.guest.id, unifi_network.iot.id]
+  }
+
+  destination = {
+    zone_id = unifi_firewall_zone.servers.id
+  }
+}

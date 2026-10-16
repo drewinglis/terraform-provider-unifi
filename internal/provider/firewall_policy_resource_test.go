@@ -737,3 +737,69 @@ resource "unifi_firewall_policy" "test" {
 }
 `, testAccProviderConfig, name, name, name, destIP)
 }
+
+// network_ids was a singular network_id that the controller ignored, so
+// NETWORK policies were rejected with EmptyFirewallPolicySourceNetworkIds.
+func TestAccFirewallPolicyResource_sourceNetworkIDs(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccCheckControllerSupportsZones(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccFirewallPolicyResourceConfig_sourceNetworkIDs("tf-acc-test-policy-network-ids"),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_firewall_policy.test", "source.matching_target", "NETWORK"),
+					resource.TestCheckResourceAttr("unifi_firewall_policy.test", "source.network_ids.#", "2"),
+				),
+			},
+			{
+				ResourceName:      "unifi_firewall_policy.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+		},
+	})
+}
+
+func testAccFirewallPolicyResourceConfig_sourceNetworkIDs(name string) string {
+	return fmt.Sprintf(`
+%s
+
+resource "unifi_network" "a" {
+  name    = "%s-a"
+  purpose = "corporate"
+  subnet  = "192.168.5.0/24"
+  vlan_id = 3902
+}
+
+resource "unifi_network" "b" {
+  name    = "%s-b"
+  purpose = "corporate"
+  subnet  = "192.168.6.0/24"
+  vlan_id = 3903
+}
+
+resource "unifi_firewall_zone" "source" {
+  name        = "%s-src-zone"
+  network_ids = [unifi_network.a.id, unifi_network.b.id]
+}
+
+resource "unifi_firewall_zone" "destination" {
+  name = "%s-dst-zone"
+}
+
+resource "unifi_firewall_policy" "test" {
+  name   = %q
+  action = "BLOCK"
+
+  source = {
+    zone_id     = unifi_firewall_zone.source.id
+    network_ids = [unifi_network.a.id, unifi_network.b.id]
+  }
+
+  destination = {
+    zone_id = unifi_firewall_zone.destination.id
+  }
+}
+`, testAccProviderConfig, name, name, name, name, name)
+}
