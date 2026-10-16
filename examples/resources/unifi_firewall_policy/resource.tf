@@ -57,3 +57,20 @@ resource "unifi_firewall_policy" "block_untrusted_networks" {
     zone_id = unifi_firewall_zone.servers.id
   }
 }
+
+# Allow HTTP(S) to a set of web servers, reusing firewall groups
+resource "unifi_firewall_policy" "allow_web_servers" {
+  name     = "Allow web servers"
+  action   = "ALLOW"
+  protocol = "tcp"
+
+  source = {
+    zone_id = unifi_firewall_zone.iot.id
+  }
+
+  destination = {
+    zone_id       = unifi_firewall_zone.servers.id
+    ip_group_id   = unifi_firewall_group.web_servers.id
+    port_group_id = unifi_firewall_group.http_ports.id
+  }
+}

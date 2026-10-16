@@ -135,6 +135,14 @@ func (d *FirewallPolicyDataSource) Schema(ctx context.Context, req datasource.Sc
 						Description: "Port or port range to match.",
 						Computed:    true,
 					},
+					"ip_group_id": schema.StringAttribute{
+						Description: "ID of the firewall address group to match.",
+						Computed:    true,
+					},
+					"port_group_id": schema.StringAttribute{
+						Description: "ID of the firewall port group to match.",
+						Computed:    true,
+					},
 					"network_ids": schema.SetAttribute{
 						Description: "Set of network IDs to match.",
 						Computed:    true,
@@ -170,6 +178,14 @@ func (d *FirewallPolicyDataSource) Schema(ctx context.Context, req datasource.Sc
 					},
 					"port": schema.StringAttribute{
 						Description: "Port or port range to match.",
+						Computed:    true,
+					},
+					"ip_group_id": schema.StringAttribute{
+						Description: "ID of the firewall address group to match.",
+						Computed:    true,
+					},
+					"port_group_id": schema.StringAttribute{
+						Description: "ID of the firewall port group to match.",
 						Computed:    true,
 					},
 					"network_ids": schema.SetAttribute{
@@ -429,6 +445,8 @@ func (d *FirewallPolicyDataSource) endpointToObject(ctx context.Context, endpoin
 		"ips":             ipsVal,
 		"mac":             stringValueOrNull(endpoint.MAC),
 		"port":            stringValueOrNull(endpoint.Port),
+		"ip_group_id":     stringValueOrNull(endpoint.IPGroupID),
+		"port_group_id":   stringValueOrNull(endpoint.PortGroupID),
 		"network_ids":     networkIDsVal,
 		"client_macs":     clientMacsVal,
 	}
