@@ -23,6 +23,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringdefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
+	"github.com/hashicorp/terraform-plugin-framework/tfsdk"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 	"github.com/resnickio/unifi-go-sdk/pkg/unifi"
 )
@@ -125,6 +126,22 @@ type NetworkResourceModel struct {
 
 	// IPv6
 	IPv6 types.Object `tfsdk:"ipv6"`
+
+	// WAN
+	WANType              types.String `tfsdk:"wan_type"`
+	WANTypeV6            types.String `tfsdk:"wan_type_v6"`
+	WANNetworkGroup      types.String `tfsdk:"wan_network_group"`
+	WANDNSPreference     types.String `tfsdk:"wan_dns_preference"`
+	WANIPv6DNSPreference types.String `tfsdk:"wan_ipv6_dns_preference"`
+	WANLoadBalanceType   types.String `tfsdk:"wan_load_balance_type"`
+	WANLoadBalanceWeight types.Int64  `tfsdk:"wan_load_balance_weight"`
+	WANFailoverPriority  types.Int64  `tfsdk:"wan_failover_priority"`
+	WANSmartQEnabled     types.Bool   `tfsdk:"wan_smartq_enabled"`
+	WANVLANEnabled       types.Bool   `tfsdk:"wan_vlan_enabled"`
+	WANDHCPv6PDSizeAuto  types.Bool   `tfsdk:"wan_dhcpv6_pd_size_auto"`
+	ReportWANEvent       types.Bool   `tfsdk:"report_wan_event"`
+	MACOverrideEnabled   types.Bool   `tfsdk:"mac_override_enabled"`
+	RoutingTableID       types.Int64  `tfsdk:"routing_table_id"`
 }
 
 func NewNetworkResource() resource.Resource {
@@ -168,10 +185,13 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				},
 			},
 			"enabled": schema.BoolAttribute{
-				Description: "Whether the network is enabled. Defaults to true.",
+				Description: "Whether the network is enabled. Defaults to true. Not used by WAN networks.",
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(true),
+				PlanModifiers: []planmodifier.Bool{
+					wanNetworkUseState{},
+				},
 			},
 
 			// VLAN
@@ -184,6 +204,7 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				},
 				PlanModifiers: []planmodifier.Int64{
 					int64planmodifier.UseStateForUnknown(),
+					wanNetworkUseState{},
 				},
 			},
 			"subnet": schema.StringAttribute{
@@ -193,10 +214,13 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 
 			// DHCP Core
 			"dhcp_enabled": schema.BoolAttribute{
-				Description: "Whether DHCP is enabled on this network. Defaults to true.",
+				Description: "Whether DHCP is enabled on this network. Defaults to true. Not used by WAN networks.",
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(true),
+				PlanModifiers: []planmodifier.Bool{
+					wanNetworkUseState{},
+				},
 			},
 			"dhcp_start": schema.StringAttribute{
 				Description: "The start of the DHCP IP range.",
@@ -204,6 +228,7 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+					wanNetworkUseState{},
 				},
 			},
 			"dhcp_stop": schema.StringAttribute{
@@ -212,6 +237,7 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Computed:    true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+					wanNetworkUseState{},
 				},
 			},
 			"dhcp_lease": schema.Int64Attribute{
@@ -219,6 +245,9 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Optional:    true,
 				Computed:    true,
 				Default:     int64default.StaticInt64(defaultDHCPLease),
+				PlanModifiers: []planmodifier.Int64{
+					wanNetworkUseState{},
+				},
 			},
 
 			// DHCP DNS
@@ -226,6 +255,9 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Description: "Whether to provide DNS servers via DHCP.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					wanNetworkUseState{},
+				},
 			},
 			"dhcp_dns": schema.SetAttribute{
 				Description: "Set of DNS servers to provide via DHCP (maximum 4). Must be valid IPv4 addresses.",
@@ -328,6 +360,9 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(false),
+				PlanModifiers: []planmodifier.Bool{
+					wanNetworkUseState{},
+				},
 			},
 			"igmp_proxy_upstream": schema.BoolAttribute{
 				Description: "Whether this network acts as an IGMP proxy upstream interface.",
@@ -336,10 +371,13 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 
 			// Network Access
 			"internet_access_enabled": schema.BoolAttribute{
-				Description: "Whether internet access is enabled for this network. Defaults to true.",
+				Description: "Whether internet access is enabled for this network. Defaults to true. Not used by WAN networks.",
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(true),
+				PlanModifiers: []planmodifier.Bool{
+					wanNetworkUseState{},
+				},
 			},
 			"intra_network_access_enabled": schema.BoolAttribute{
 				Description: "Whether devices on this network can communicate with devices on other networks.",
@@ -347,13 +385,17 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
+					wanNetworkUseState{},
 				},
 			},
 			"nat_enabled": schema.BoolAttribute{
-				Description: "Whether NAT is enabled for this network. Defaults to true.",
+				Description: "Whether NAT is enabled for this network. Defaults to true. Not used by WAN networks.",
 				Optional:    true,
 				Computed:    true,
 				Default:     booldefault.StaticBool(true),
+				PlanModifiers: []planmodifier.Bool{
+					wanNetworkUseState{},
+				},
 			},
 			"mdns_enabled": schema.BoolAttribute{
 				Description: "Whether mDNS (Bonjour/Avahi) is enabled for this network. Computed by the controller when not set.",
@@ -361,6 +403,7 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
+					wanNetworkUseState{},
 				},
 			},
 			"upnp_lan_enabled": schema.BoolAttribute{
@@ -369,17 +412,22 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Computed:    true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
+					wanNetworkUseState{},
 				},
 			},
 
 			// Routing
 			"network_group": schema.StringAttribute{
-				Description: "The network group. Valid values: 'LAN', 'WAN', 'WAN2'. Defaults to 'LAN'.",
-				Optional:    true,
-				Computed:    true,
-				Default:     stringdefault.StaticString("LAN"),
+				Description: "The network group. Valid values: 'LAN', 'WAN', 'WAN2'. Defaults to 'LAN'. " +
+					"WAN networks use wan_network_group instead.",
+				Optional: true,
+				Computed: true,
+				Default:  stringdefault.StaticString("LAN"),
 				Validators: []validator.String{
 					stringvalidator.OneOf("LAN", "WAN", "WAN2"),
+				},
+				PlanModifiers: []planmodifier.String{
+					wanNetworkUseState{},
 				},
 			},
 			"firewall_zone_id": schema.StringAttribute{
@@ -393,9 +441,12 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 
 			// IPv6
 			"ipv6": schema.SingleNestedAttribute{
-				Description: "IPv6 configuration for this network.",
+				Description: "IPv6 configuration for this network. Not used by WAN networks.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.Object{
+					wanNetworkUseState{},
+				},
 				Attributes: map[string]schema.Attribute{
 					"interface_type": schema.StringAttribute{
 						Description: "IPv6 interface type. Valid values: 'none', 'static', 'pd'.",
@@ -515,6 +566,131 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 						Optional:    true,
 						Computed:    true,
 					},
+				},
+			},
+
+			// WAN
+			"wan_type": schema.StringAttribute{
+				Description: "WAN IPv4 connection type (WAN networks only). Valid values: 'dhcp', 'static', 'pppoe', " +
+					"'disabled', 'dslite', 'dslite-over-pppoe', 'map-e,hubspoke', 'map-e,jpix', 'map-e,ntt'.",
+				Optional: true,
+				Computed: true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("dhcp", "static", "pppoe", "disabled", "dslite", "dslite-over-pppoe",
+						"map-e,hubspoke", "map-e,jpix", "map-e,ntt"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"wan_type_v6": schema.StringAttribute{
+				Description: "WAN IPv6 connection type (WAN networks only). Valid values: 'disabled', 'dhcpv6', " +
+					"'static', 'slaac'.",
+				Optional: true,
+				Computed: true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("disabled", "dhcpv6", "static", "slaac"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"wan_network_group": schema.StringAttribute{
+				Description: "The WAN interface group this WAN network belongs to (e.g. 'WAN', 'WAN2').",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"wan_dns_preference": schema.StringAttribute{
+				Description: "How the WAN obtains IPv4 DNS servers (e.g. 'auto', 'manual').",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"wan_ipv6_dns_preference": schema.StringAttribute{
+				Description: "How the WAN obtains IPv6 DNS servers (e.g. 'auto', 'manual').",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"wan_load_balance_type": schema.StringAttribute{
+				Description: "Multi-WAN mode for this WAN. Valid values: 'failover-only', 'weighted'.",
+				Optional:    true,
+				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("failover-only", "weighted"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"wan_load_balance_weight": schema.Int64Attribute{
+				Description: "Share of traffic sent to this WAN when wan_load_balance_type is 'weighted'.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+			},
+			"wan_failover_priority": schema.Int64Attribute{
+				Description: "Failover order of this WAN; lower values are preferred.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+			},
+			"wan_smartq_enabled": schema.BoolAttribute{
+				Description: "Whether Smart Queues (SQM) is enabled on this WAN.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"wan_vlan_enabled": schema.BoolAttribute{
+				Description: "Whether this WAN connection is VLAN-tagged.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"wan_dhcpv6_pd_size_auto": schema.BoolAttribute{
+				Description: "Whether the DHCPv6 prefix delegation size is chosen automatically.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"report_wan_event": schema.BoolAttribute{
+				Description: "Whether the controller reports events (e.g. failover) for this WAN.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"mac_override_enabled": schema.BoolAttribute{
+				Description: "Whether the WAN interface uses an overridden MAC address.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"routing_table_id": schema.Int64Attribute{
+				Description: "The routing table the controller assigned to this WAN (read-only).",
+				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
 				},
 			},
 		},
@@ -693,7 +869,15 @@ func (r *NetworkResource) planToSDK(ctx context.Context, plan *NetworkResourceMo
 	network := &unifi.Network{
 		Name:    plan.Name.ValueString(),
 		Purpose: plan.Purpose.ValueString(),
-		Enabled: boolPtr(plan.Enabled.ValueBool()),
+	}
+	// WAN networks have none of the LAN settings, so only send the ones the
+	// user configured rather than planned defaults or unknowns.
+	isWAN := network.Purpose == "wan"
+	sendLAN := func(v attr.Value) bool {
+		return !v.IsNull() && !(isWAN && v.IsUnknown())
+	}
+	if sendLAN(plan.Enabled) {
+		network.Enabled = boolPtr(plan.Enabled.ValueBool())
 	}
 
 	// VLAN
@@ -706,11 +890,13 @@ func (r *NetworkResource) planToSDK(ctx context.Context, plan *NetworkResourceMo
 	}
 
 	// DHCP Core
-	network.DHCPDEnabled = boolPtr(plan.DHCPEnabled.ValueBool())
-	if !plan.DHCPStart.IsNull() {
+	if sendLAN(plan.DHCPEnabled) {
+		network.DHCPDEnabled = boolPtr(plan.DHCPEnabled.ValueBool())
+	}
+	if sendLAN(plan.DHCPStart) {
 		network.DHCPDStart = plan.DHCPStart.ValueString()
 	}
-	if !plan.DHCPStop.IsNull() {
+	if sendLAN(plan.DHCPStop) {
 		network.DHCPDStop = plan.DHCPStop.ValueString()
 	}
 	if !plan.DHCPLease.IsNull() && !plan.DHCPLease.IsUnknown() {
@@ -718,7 +904,7 @@ func (r *NetworkResource) planToSDK(ctx context.Context, plan *NetworkResourceMo
 	}
 
 	// DHCP DNS
-	if !plan.DHCPDNSEnabled.IsNull() {
+	if sendLAN(plan.DHCPDNSEnabled) {
 		network.DHCPDDNSEnabled = boolPtr(plan.DHCPDNSEnabled.ValueBool())
 	}
 	if !plan.DHCPDNS.IsNull() {
@@ -802,15 +988,23 @@ func (r *NetworkResource) planToSDK(ctx context.Context, plan *NetworkResourceMo
 	if !plan.DomainName.IsNull() {
 		network.DomainName = plan.DomainName.ValueString()
 	}
-	network.IGMPSnooping = boolPtr(plan.IGMPSnooping.ValueBool())
+	if sendLAN(plan.IGMPSnooping) {
+		network.IGMPSnooping = boolPtr(plan.IGMPSnooping.ValueBool())
+	}
 	if !plan.IGMPProxyUpstream.IsNull() {
 		network.IGMPProxyUpstream = boolPtr(plan.IGMPProxyUpstream.ValueBool())
 	}
 
 	// Network Access
-	network.InternetAccessEnabled = boolPtr(plan.InternetAccessEnabled.ValueBool())
-	network.IntraNetworkAccessEnabled = boolPtr(plan.IntraNetworkAccessEnabled.ValueBool())
-	network.IsNAT = boolPtr(plan.NATEnabled.ValueBool())
+	if sendLAN(plan.InternetAccessEnabled) {
+		network.InternetAccessEnabled = boolPtr(plan.InternetAccessEnabled.ValueBool())
+	}
+	if sendLAN(plan.IntraNetworkAccessEnabled) {
+		network.IntraNetworkAccessEnabled = boolPtr(plan.IntraNetworkAccessEnabled.ValueBool())
+	}
+	if sendLAN(plan.NATEnabled) {
+		network.IsNAT = boolPtr(plan.NATEnabled.ValueBool())
+	}
 	// Skip when unknown so we don't force the controller default — the schema
 	// marks these Optional+Computed, so an omitted attribute resolves to
 	// Unknown (on Create) or to the prior state (on Update).
@@ -822,7 +1016,9 @@ func (r *NetworkResource) planToSDK(ctx context.Context, plan *NetworkResourceMo
 	}
 
 	// Routing
-	network.NetworkGroup = plan.NetworkGroup.ValueString()
+	if sendLAN(plan.NetworkGroup) {
+		network.NetworkGroup = plan.NetworkGroup.ValueString()
+	}
 	if !plan.FirewallZoneID.IsNull() {
 		network.FirewallZoneID = plan.FirewallZoneID.ValueString()
 	}
@@ -833,6 +1029,47 @@ func (r *NetworkResource) planToSDK(ctx context.Context, plan *NetworkResourceMo
 		if diags.HasError() {
 			return nil
 		}
+	}
+
+	// WAN
+	if !plan.WANType.IsNull() && !plan.WANType.IsUnknown() {
+		network.WANType = plan.WANType.ValueString()
+	}
+	if !plan.WANTypeV6.IsNull() && !plan.WANTypeV6.IsUnknown() {
+		network.WANTypeV6 = plan.WANTypeV6.ValueString()
+	}
+	if !plan.WANNetworkGroup.IsNull() && !plan.WANNetworkGroup.IsUnknown() {
+		network.WANNetworkGroup = plan.WANNetworkGroup.ValueString()
+	}
+	if !plan.WANDNSPreference.IsNull() && !plan.WANDNSPreference.IsUnknown() {
+		network.WANDNSPreference = plan.WANDNSPreference.ValueString()
+	}
+	if !plan.WANIPv6DNSPreference.IsNull() && !plan.WANIPv6DNSPreference.IsUnknown() {
+		network.WANIPv6DNSPreference = plan.WANIPv6DNSPreference.ValueString()
+	}
+	if !plan.WANLoadBalanceType.IsNull() && !plan.WANLoadBalanceType.IsUnknown() {
+		network.WANLoadBalanceType = plan.WANLoadBalanceType.ValueString()
+	}
+	if !plan.WANLoadBalanceWeight.IsNull() && !plan.WANLoadBalanceWeight.IsUnknown() {
+		network.WANLoadBalanceWeight = intPtr(plan.WANLoadBalanceWeight.ValueInt64())
+	}
+	if !plan.WANFailoverPriority.IsNull() && !plan.WANFailoverPriority.IsUnknown() {
+		network.WANFailoverPriority = intPtr(plan.WANFailoverPriority.ValueInt64())
+	}
+	if !plan.WANSmartQEnabled.IsNull() && !plan.WANSmartQEnabled.IsUnknown() {
+		network.WANSmartQEnabled = boolPtr(plan.WANSmartQEnabled.ValueBool())
+	}
+	if !plan.WANVLANEnabled.IsNull() && !plan.WANVLANEnabled.IsUnknown() {
+		network.WANVLANEnabled = boolPtr(plan.WANVLANEnabled.ValueBool())
+	}
+	if !plan.WANDHCPv6PDSizeAuto.IsNull() && !plan.WANDHCPv6PDSizeAuto.IsUnknown() {
+		network.WANDHCPv6PDSizeAuto = boolPtr(plan.WANDHCPv6PDSizeAuto.ValueBool())
+	}
+	if !plan.ReportWANEvent.IsNull() && !plan.ReportWANEvent.IsUnknown() {
+		network.ReportWANEvent = boolPtr(plan.ReportWANEvent.ValueBool())
+	}
+	if !plan.MACOverrideEnabled.IsNull() && !plan.MACOverrideEnabled.IsUnknown() {
+		network.MACOverrideEnabled = boolPtr(plan.MACOverrideEnabled.ValueBool())
 	}
 
 	return network
@@ -984,7 +1221,152 @@ func (r *NetworkResource) sdkToState(ctx context.Context, network *unifi.Network
 	}
 	state.IPv6 = ipv6Obj
 
+	// WAN
+	state.WANType = stringValueOrNull(network.WANType)
+	state.WANTypeV6 = stringValueOrNull(network.WANTypeV6)
+	state.WANNetworkGroup = stringValueOrNull(network.WANNetworkGroup)
+	state.WANDNSPreference = stringValueOrNull(network.WANDNSPreference)
+	state.WANIPv6DNSPreference = stringValueOrNull(network.WANIPv6DNSPreference)
+	state.WANLoadBalanceType = stringValueOrNull(network.WANLoadBalanceType)
+	if network.WANLoadBalanceWeight != nil {
+		state.WANLoadBalanceWeight = types.Int64Value(int64(*network.WANLoadBalanceWeight))
+	} else {
+		state.WANLoadBalanceWeight = types.Int64Null()
+	}
+	if network.WANFailoverPriority != nil {
+		state.WANFailoverPriority = types.Int64Value(int64(*network.WANFailoverPriority))
+	} else {
+		state.WANFailoverPriority = types.Int64Null()
+	}
+	if network.WANSmartQEnabled != nil {
+		state.WANSmartQEnabled = types.BoolValue(*network.WANSmartQEnabled)
+	} else {
+		state.WANSmartQEnabled = types.BoolNull()
+	}
+	if network.WANVLANEnabled != nil {
+		state.WANVLANEnabled = types.BoolValue(*network.WANVLANEnabled)
+	} else {
+		state.WANVLANEnabled = types.BoolNull()
+	}
+	if network.WANDHCPv6PDSizeAuto != nil {
+		state.WANDHCPv6PDSizeAuto = types.BoolValue(*network.WANDHCPv6PDSizeAuto)
+	} else {
+		state.WANDHCPv6PDSizeAuto = types.BoolNull()
+	}
+	if network.ReportWANEvent != nil {
+		state.ReportWANEvent = types.BoolValue(*network.ReportWANEvent)
+	} else {
+		state.ReportWANEvent = types.BoolNull()
+	}
+	if network.MACOverrideEnabled != nil {
+		state.MACOverrideEnabled = types.BoolValue(*network.MACOverrideEnabled)
+	} else {
+		state.MACOverrideEnabled = types.BoolNull()
+	}
+	if network.RoutingTableID != nil {
+		state.RoutingTableID = types.Int64Value(int64(*network.RoutingTableID))
+	} else {
+		state.RoutingTableID = types.Int64Null()
+	}
+
+	if network.Purpose == "wan" {
+		wanNullLANAttributes(network, state)
+	}
+
 	return diags
+}
+
+// wanNullLANAttributes replaces the LAN-only attributes that sdkToState fills
+// with defaults (false, 0, the default lease) with null when the controller
+// did not return them, since WAN networks have no such settings.
+func wanNullLANAttributes(network *unifi.Network, state *NetworkResourceModel) {
+	nullIfNil := func(p *bool, v *types.Bool) {
+		if p == nil {
+			*v = types.BoolNull()
+		}
+	}
+	nullIfNil(network.Enabled, &state.Enabled)
+	nullIfNil(network.DHCPDEnabled, &state.DHCPEnabled)
+	nullIfNil(network.IGMPSnooping, &state.IGMPSnooping)
+	nullIfNil(network.InternetAccessEnabled, &state.InternetAccessEnabled)
+	nullIfNil(network.IntraNetworkAccessEnabled, &state.IntraNetworkAccessEnabled)
+	nullIfNil(network.IsNAT, &state.NATEnabled)
+	nullIfNil(network.MDNSEnabled, &state.MDNSEnabled)
+	nullIfNil(network.UpnpLANEnabled, &state.UPnPLANEnabled)
+	if network.DHCPDLeasetime == nil {
+		state.DHCPLease = types.Int64Null()
+	}
+	state.NetworkGroup = stringValueOrNull(network.NetworkGroup)
+	state.IPv6 = types.ObjectNull(ipv6AttrTypes)
+}
+
+// wanNetworkUseState plans an unconfigured LAN-only attribute of a WAN network
+// as its prior state value (unknown on create) instead of the schema default.
+// WAN networks don't have these settings, so their state is null and
+// planToSDK leaves them out of the request.
+type wanNetworkUseState struct{}
+
+func (m wanNetworkUseState) Description(ctx context.Context) string {
+	return "On WAN networks, keeps the prior state value when the attribute is not configured."
+}
+
+func (m wanNetworkUseState) MarkdownDescription(ctx context.Context) string {
+	return m.Description(ctx)
+}
+
+func (m wanNetworkUseState) applies(ctx context.Context, config attr.Value, plan tfsdk.Plan) bool {
+	if !config.IsNull() || plan.Raw.IsNull() {
+		return false
+	}
+	var purpose types.String
+	if diags := plan.GetAttribute(ctx, path.Root("purpose"), &purpose); diags.HasError() {
+		return false
+	}
+	return purpose.ValueString() == "wan"
+}
+
+func (m wanNetworkUseState) PlanModifyBool(ctx context.Context, req planmodifier.BoolRequest, resp *planmodifier.BoolResponse) {
+	if !m.applies(ctx, req.ConfigValue, req.Plan) {
+		return
+	}
+	if req.State.Raw.IsNull() {
+		resp.PlanValue = types.BoolUnknown()
+	} else {
+		resp.PlanValue = req.StateValue
+	}
+}
+
+func (m wanNetworkUseState) PlanModifyInt64(ctx context.Context, req planmodifier.Int64Request, resp *planmodifier.Int64Response) {
+	if !m.applies(ctx, req.ConfigValue, req.Plan) {
+		return
+	}
+	if req.State.Raw.IsNull() {
+		resp.PlanValue = types.Int64Unknown()
+	} else {
+		resp.PlanValue = req.StateValue
+	}
+}
+
+func (m wanNetworkUseState) PlanModifyString(ctx context.Context, req planmodifier.StringRequest, resp *planmodifier.StringResponse) {
+	if !m.applies(ctx, req.ConfigValue, req.Plan) {
+		return
+	}
+	if req.State.Raw.IsNull() {
+		resp.PlanValue = types.StringUnknown()
+	} else {
+		resp.PlanValue = req.StateValue
+	}
+}
+
+func (m wanNetworkUseState) PlanModifyObject(ctx context.Context, req planmodifier.ObjectRequest, resp *planmodifier.ObjectResponse) {
+	if !m.applies(ctx, req.ConfigValue, req.Plan) {
+		return
+	}
+	if req.State.Raw.IsNull() {
+		resp.PlanValue = types.ObjectUnknown(req.PlanValue.AttributeTypes(ctx))
+	} else {
+		resp.PlanValue = req.StateValue
+	}
 }
 
 func ipv6FromObject(ctx context.Context, obj types.Object, network *unifi.Network, diags *diag.Diagnostics) {

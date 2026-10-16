@@ -1,10 +1,15 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-testing/helper/resource"
+	"github.com/hashicorp/terraform-plugin-testing/knownvalue"
+	"github.com/hashicorp/terraform-plugin-testing/plancheck"
+	"github.com/hashicorp/terraform-plugin-testing/tfjsonpath"
+	"github.com/resnickio/unifi-go-sdk/pkg/unifi"
 )
 
 func TestAccNetworkResource_basic(t *testing.T) {
@@ -114,6 +119,9 @@ func TestAccNetworkResource_defaults(t *testing.T) {
 					resource.TestCheckResourceAttr("unifi_network.test", "internet_access_enabled", "true"),
 					resource.TestCheckResourceAttrSet("unifi_network.test", "intra_network_access_enabled"),
 					resource.TestCheckResourceAttr("unifi_network.test", "nat_enabled", "true"),
+					// WAN-only attributes stay unset on LAN networks
+					resource.TestCheckNoResourceAttr("unifi_network.test", "wan_type"),
+					resource.TestCheckNoResourceAttr("unifi_network.test", "wan_network_group"),
 				),
 			},
 		},
@@ -1160,4 +1168,72 @@ resource "unifi_network" "test" {
   }
 }
 `, testAccProviderConfig, name, vlanID, vlanID%256, vlanID%256, vlanID%256)
+}
+
+// TestAccNetworkResource_wanImport imports the controller's existing WAN
+// network with an import block and a config naming only name and purpose.
+// The import must plan as a no-op with the LAN-only attributes null. WAN
+// networks can't be safely created or destroyed in a test, so this step only
+// plans.
+func TestAccNetworkResource_wanImport(t *testing.T) {
+	wan := testAccGetFirstWANNetwork(t)
+	if wan == nil {
+		t.Skip("No WAN network available for testing")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: fmt.Sprintf(`
+%s
+
+resource "unifi_network" "wan" {
+  name    = %q
+  purpose = "wan"
+}
+`, testAccProviderConfig, wan.Name),
+				ResourceName:    "unifi_network.wan",
+				ImportState:     true,
+				ImportStateKind: resource.ImportBlockWithID,
+				ImportStateId:   wan.ID,
+				ImportPlanChecks: resource.ImportPlanChecks{
+					PreApply: []plancheck.PlanCheck{
+						plancheck.ExpectKnownValue("unifi_network.wan", tfjsonpath.New("wan_type"),
+							knownvalue.StringExact(wan.WANType)),
+						plancheck.ExpectKnownValue("unifi_network.wan", tfjsonpath.New("wan_network_group"),
+							knownvalue.StringExact(wan.WANNetworkGroup)),
+						plancheck.ExpectKnownValue("unifi_network.wan", tfjsonpath.New("enabled"),
+							knownvalue.Null()),
+						plancheck.ExpectKnownValue("unifi_network.wan", tfjsonpath.New("dhcp_enabled"),
+							knownvalue.Null()),
+						plancheck.ExpectKnownValue("unifi_network.wan", tfjsonpath.New("network_group"),
+							knownvalue.Null()),
+						plancheck.ExpectKnownValue("unifi_network.wan", tfjsonpath.New("ipv6"),
+							knownvalue.Null()),
+					},
+				},
+			},
+		},
+	})
+}
+
+func testAccGetFirstWANNetwork(t *testing.T) *unifi.Network {
+	client := testAccGetClient(t)
+	if client == nil {
+		return nil
+	}
+
+	networks, err := client.ListNetworks(context.Background())
+	if err != nil {
+		return nil
+	}
+
+	for i := range networks {
+		if networks[i].Purpose == "wan" {
+			return &networks[i]
+		}
+	}
+	return nil
 }
