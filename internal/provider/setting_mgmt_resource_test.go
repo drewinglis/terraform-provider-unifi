@@ -52,6 +52,9 @@ func TestAccSettingMgmtResource_update(t *testing.T) {
 					resource.TestCheckResourceAttr("unifi_setting_mgmt.test", "x_ssh_enabled", "true"),
 					resource.TestCheckResourceAttr("unifi_setting_mgmt.test", "x_ssh_auth_password_enabled", "true"),
 					resource.TestCheckResourceAttr("unifi_setting_mgmt.test", "x_ssh_username", "admin"),
+					resource.TestCheckResourceAttr("unifi_setting_mgmt.test", "advanced_feature_enabled", "true"),
+					resource.TestCheckResourceAttr("unifi_setting_mgmt.test", "unifi_idp_enabled", "false"),
+					resource.TestCheckResourceAttr("unifi_setting_mgmt.test", "wifiman_enabled", "false"),
 				),
 			},
 		},
@@ -77,6 +80,9 @@ resource "unifi_setting_mgmt" "test" {
   x_ssh_auth_password_enabled = true
   x_ssh_username              = "admin"
   x_ssh_password              = "testpass123"
+  advanced_feature_enabled    = true
+  unifi_idp_enabled           = false
+  wifiman_enabled             = false
 }
 `
 }

@@ -23,6 +23,8 @@ resource "unifi_setting_mgmt" "example" {
   x_ssh_auth_password_enabled = true
   x_ssh_username = "admin"
   x_ssh_password = "secure-ssh-pass"
+  advanced_feature_enabled = true
+  wifiman_enabled = true
 }
 ```
 
@@ -31,11 +33,14 @@ resource "unifi_setting_mgmt" "example" {
 
 ### Optional
 
+- `advanced_feature_enabled` (Boolean) Show advanced features in the UniFi Network UI.
 - `alert_enabled` (Boolean) Enable alerts.
 - `auto_upgrade` (Boolean) Enable automatic device firmware upgrades.
 - `auto_upgrade_hour` (Number) Hour of day for auto-upgrades (0-23).
 - `led_enabled` (Boolean) Enable device LEDs.
 - `timeouts` (Block, Optional) (see [below for nested schema](#nestedblock--timeouts))
+- `unifi_idp_enabled` (Boolean) Enable UniFi Identity (IdP) integration.
+- `wifiman_enabled` (Boolean) Allow the WiFiman app to discover and test against this site's devices.
 - `x_ssh_auth_password_enabled` (Boolean) Enable SSH password authentication.
 - `x_ssh_enabled` (Boolean) Enable SSH access to devices.
 - `x_ssh_password` (String, Sensitive) SSH password (write-only).

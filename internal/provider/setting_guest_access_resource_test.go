@@ -46,6 +46,9 @@ func TestAccSettingGuestAccessResource_update(t *testing.T) {
 					resource.TestCheckResourceAttr("unifi_setting_guest_access.test", "auth", "none"),
 					resource.TestCheckResourceAttr("unifi_setting_guest_access.test", "portal_customized", "true"),
 					resource.TestCheckResourceAttr("unifi_setting_guest_access.test", "portal_customized_title", "Welcome"),
+					resource.TestCheckResourceAttr("unifi_setting_guest_access.test", "portal_customized_languages.#", "2"),
+					resource.TestCheckResourceAttr("unifi_setting_guest_access.test", "portal_customized_languages.0", "en"),
+					resource.TestCheckResourceAttr("unifi_setting_guest_access.test", "portal_customized_languages.1", "de"),
 				),
 			},
 		},
@@ -67,6 +70,7 @@ resource "unifi_setting_guest_access" "test" {
   portal_customized        = true
   auth                     = "none"
   portal_customized_title  = "Welcome"
+  portal_customized_languages = ["en", "de"]
 }
 `
 }

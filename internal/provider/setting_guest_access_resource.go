@@ -13,6 +13,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/listplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
@@ -63,6 +64,7 @@ type SettingGuestAccessResourceModel struct {
 	PortalCustomizedLogoPosition       types.String   `tfsdk:"portal_customized_logo_position"`
 	PortalCustomizedLogoSize           types.Int64    `tfsdk:"portal_customized_logo_size"`
 	PortalUseHostname                  types.Bool     `tfsdk:"portal_use_hostname"`
+	PortalCustomizedLanguages          types.List     `tfsdk:"portal_customized_languages"`
 	ECEnabled                          types.Bool     `tfsdk:"ec_enabled"`
 	TemplateEngine                     types.String   `tfsdk:"template_engine"`
 	Timeouts                           timeouts.Value `tfsdk:"timeouts"`
@@ -330,6 +332,15 @@ func (r *SettingGuestAccessResource) Schema(ctx context.Context, req resource.Sc
 				Computed:    true,
 				Default:     booldefault.StaticBool(false),
 			},
+			"portal_customized_languages": schema.ListAttribute{
+				Description: "Languages offered on the customized portal, as language codes (e.g. 'en').",
+				Optional:    true,
+				Computed:    true,
+				ElementType: types.StringType,
+				PlanModifiers: []planmodifier.List{
+					listplanmodifier.UseStateForUnknown(),
+				},
+			},
 			"ec_enabled": schema.BoolAttribute{
 				Description: "Enable external captive portal.",
 				Optional:    true,
@@ -596,6 +607,15 @@ func (r *SettingGuestAccessResource) planToSDK(plan *SettingGuestAccessResourceM
 	if !plan.TemplateEngine.IsNull() && !plan.TemplateEngine.IsUnknown() {
 		s.TemplateEngine = plan.TemplateEngine.ValueString()
 	}
+	if !plan.PortalCustomizedLanguages.IsNull() && !plan.PortalCustomizedLanguages.IsUnknown() {
+		langs := make([]string, 0, len(plan.PortalCustomizedLanguages.Elements()))
+		for _, v := range plan.PortalCustomizedLanguages.Elements() {
+			if sv, ok := v.(types.String); ok {
+				langs = append(langs, sv.ValueString())
+			}
+		}
+		s.PortalCustomizedLanguages = langs
+	}
 
 	return s
 }
@@ -662,6 +682,13 @@ func (r *SettingGuestAccessResource) sdkToState(setting *unifi.SettingGuestAcces
 		state.PortalCustomizedLogoSize = types.Int64Value(int64(*setting.PortalCustomizedLogoSize))
 	} else {
 		state.PortalCustomizedLogoSize = types.Int64Null()
+	}
+	if setting.PortalCustomizedLanguages != nil {
+		langs, d := types.ListValueFrom(context.Background(), types.StringType, setting.PortalCustomizedLanguages)
+		diags.Append(d...)
+		state.PortalCustomizedLanguages = langs
+	} else {
+		state.PortalCustomizedLanguages = types.ListNull(types.StringType)
 	}
 
 	return diags
