@@ -257,6 +257,38 @@ func TestAccWLANResource_macFilter(t *testing.T) {
 	})
 }
 
+func TestAccWLANResource_privatePresharedKeys(t *testing.T) {
+	apGroupID := getDefaultAPGroupID(t)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccWLANResourceConfig_privatePresharedKeys("tf-acc-test-wlan-ppsk", "TestPassword123!", 3961, apGroupID),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_wlan.test", "private_preshared_keys_enabled", "true"),
+					resource.TestCheckResourceAttr("unifi_wlan.test", "private_preshared_keys.#", "2"),
+					resource.TestCheckTypeSetElemNestedAttrs("unifi_wlan.test", "private_preshared_keys.*", map[string]string{
+						"password": "PpskPassword001!",
+					}),
+					resource.TestCheckTypeSetElemNestedAttrs("unifi_wlan.test", "private_preshared_keys.*", map[string]string{
+						"password": "PpskPassword002!",
+					}),
+					resource.TestCheckTypeSetElemAttrPair("unifi_wlan.test", "private_preshared_keys.*.network_id",
+						"unifi_network.ppsk", "id"),
+				),
+			},
+			{
+				ResourceName:            "unifi_wlan.test",
+				ImportState:             true,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"passphrase"},
+			},
+		},
+	})
+}
+
 func testAccWLANResourceConfig_basic(name, passphrase, apGroupID string) string {
 	return fmt.Sprintf(`
 %s
@@ -400,4 +432,38 @@ resource "unifi_wlan" "test" {
   mac_filter_list    = [%s]
 }
 `, testAccProviderConfig, name, passphrase, apGroupID, formatStringListForHCL(macs))
+}
+
+func testAccWLANResourceConfig_privatePresharedKeys(name, passphrase string, vlan int, apGroupID string) string {
+	return fmt.Sprintf(`
+%s
+
+resource "unifi_network" "ppsk" {
+  name         = "%s-network"
+  purpose      = "corporate"
+  vlan_id      = %d
+  subnet       = "10.%d.0.1/24"
+  dhcp_enabled = true
+  dhcp_start   = "10.%d.0.10"
+  dhcp_stop    = "10.%d.0.254"
+}
+
+resource "unifi_wlan" "test" {
+  name                           = %q
+  security                       = "wpapsk"
+  passphrase                     = %q
+  ap_group_ids                   = [%q]
+  private_preshared_keys_enabled = true
+  private_preshared_keys = [
+    {
+      password   = "PpskPassword001!"
+      network_id = unifi_network.ppsk.id
+    },
+    {
+      password   = "PpskPassword002!"
+      network_id = unifi_network.ppsk.id
+    },
+  ]
+}
+`, testAccProviderConfig, name, vlan, vlan%256, vlan%256, vlan%256, name, passphrase, apGroupID)
 }

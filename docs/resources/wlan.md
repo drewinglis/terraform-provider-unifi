@@ -49,6 +49,24 @@ resource "unifi_wlan" "secure" {
   pmf_mode = "required"
 }
 
+# Use private pre-shared keys to put clients on different networks by passphrase
+resource "unifi_wlan" "iot" {
+  name         = "IoT"
+  security     = "wpapsk"
+  wpa_mode     = "wpa2"
+  passphrase   = var.wifi_password
+  ap_group_ids = [data.unifi_ap_group.default.id]
+  network_id   = unifi_network.main.id
+
+  private_preshared_keys_enabled = true
+  private_preshared_keys = [
+    {
+      password   = var.iot_cameras_password
+      network_id = unifi_network.cameras.id
+    },
+  ]
+}
+
 variable "wifi_password" {
   type      = string
   sensitive = true
@@ -64,10 +82,21 @@ variable "secure_wifi_password" {
   sensitive = true
 }
 
+variable "iot_cameras_password" {
+  type      = string
+  sensitive = true
+}
+
 resource "unifi_network" "main" {
   name    = "Main Network"
   purpose = "corporate"
   vlan_id = 1
+}
+
+resource "unifi_network" "cameras" {
+  name    = "Cameras"
+  purpose = "corporate"
+  vlan_id = 30
 }
 ```
 
@@ -93,6 +122,8 @@ resource "unifi_network" "main" {
 - `network_id` (String) The network ID (VLAN) to assign to this WLAN.
 - `passphrase` (String, Sensitive) The wireless passphrase (required for wpapsk security). Note: This value is write-only and cannot be read back from the controller.
 - `pmf_mode` (String) Protected Management Frames mode. Valid values: 'disabled', 'optional', 'required'. Defaults to 'optional'.
+- `private_preshared_keys` (Attributes Set) Set of private pre-shared keys. A client that connects with one of these passphrases is placed on the key's network instead of network_id. Must contain at least one key when set; the controller cannot be told to clear the list. (see [below for nested schema](#nestedatt--private_preshared_keys))
+- `private_preshared_keys_enabled` (Boolean) Whether private pre-shared keys (PPSK) are enabled, letting each passphrase in private_preshared_keys place clients on its own network.
 - `proxy_arp` (Boolean) Whether proxy ARP is enabled. Defaults to false.
 - `schedule` (Set of String) Schedule configuration.
 - `schedule_enabled` (Boolean) Whether scheduling is enabled. Defaults to false.
@@ -113,6 +144,15 @@ resource "unifi_network" "main" {
 
 - `id` (String) The unique identifier of the WLAN.
 - `site_id` (String) The site ID where the WLAN is created.
+
+<a id="nestedatt--private_preshared_keys"></a>
+### Nested Schema for `private_preshared_keys`
+
+Required:
+
+- `network_id` (String) The network ID clients using this passphrase are placed on.
+- `password` (String, Sensitive) The passphrase for this key.
+
 
 <a id="nestedblock--timeouts"></a>
 ### Nested Schema for `timeouts`
