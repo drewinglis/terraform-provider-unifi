@@ -220,6 +220,36 @@ func TestAccUserResource_note(t *testing.T) {
 	})
 }
 
+func TestAccUserResource_virtualNetworkOverride(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccUserResourceConfig_virtualNetworkOverride("aa:bb:cc:00:00:09", "tf-acc-test-user-vno", true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_user.test", "virtual_network_override_enabled", "true"),
+					resource.TestCheckResourceAttrPair(
+						"unifi_user.test", "virtual_network_override_id",
+						"unifi_network.test", "id",
+					),
+				),
+			},
+			{
+				ResourceName:      "unifi_user.test",
+				ImportState:       true,
+				ImportStateVerify: true,
+			},
+			{
+				Config: testAccUserResourceConfig_virtualNetworkOverride("aa:bb:cc:00:00:09", "tf-acc-test-user-vno", false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_user.test", "virtual_network_override_enabled", "false"),
+				),
+			},
+		},
+	})
+}
+
 func testAccUserResourceConfig_basic(mac, name string) string {
 	return fmt.Sprintf(`
 %s
@@ -339,4 +369,24 @@ resource "unifi_user" "test" {
   noted = true
 }
 `, testAccProviderConfig, mac, name, note)
+}
+
+func testAccUserResourceConfig_virtualNetworkOverride(mac, name string, enabled bool) string {
+	return fmt.Sprintf(`
+%s
+
+resource "unifi_network" "test" {
+  name    = "tf-acc-test-user-vno-net"
+  purpose = "corporate"
+  subnet  = "192.168.4.0/24"
+  vlan_id = 3901
+}
+
+resource "unifi_user" "test" {
+  mac                              = %q
+  name                             = %q
+  virtual_network_override_enabled = %t
+  virtual_network_override_id      = unifi_network.test.id
+}
+`, testAccProviderConfig, mac, name, enabled)
 }

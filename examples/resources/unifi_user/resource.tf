@@ -33,3 +33,11 @@ resource "unifi_user" "iot_device" {
   note         = "Living room thermostat"
   noted        = true
 }
+
+# Place a wireless client on a different network than its SSID's
+resource "unifi_user" "laptop" {
+  mac                              = "aa:bb:cc:dd:ee:05"
+  name                             = "Work Laptop"
+  virtual_network_override_enabled = true
+  virtual_network_override_id      = unifi_network.work.id
+}
