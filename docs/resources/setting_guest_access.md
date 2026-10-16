@@ -17,6 +17,8 @@ resource "unifi_setting_guest_access" "example" {
   portal_customized       = true
   auth                    = "none"
   portal_customized_title = "Welcome to Our Network"
+
+  portal_customized_languages = ["en", "es"]
 }
 ```
 
@@ -42,6 +44,7 @@ resource "unifi_setting_guest_access" "example" {
 - `portal_customized_button_color` (String) Portal button color (hex).
 - `portal_customized_button_text` (String) Portal button text.
 - `portal_customized_button_text_color` (String) Portal button text color (hex).
+- `portal_customized_languages` (List of String) Languages offered on the customized portal, as language codes (e.g. 'en').
 - `portal_customized_link_color` (String) Portal link color (hex).
 - `portal_customized_logo_position` (String) Portal logo position.
 - `portal_customized_logo_size` (Number) Portal logo size.

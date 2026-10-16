@@ -7,4 +7,6 @@ resource "unifi_setting_mgmt" "example" {
   x_ssh_auth_password_enabled = true
   x_ssh_username = "admin"
   x_ssh_password = "secure-ssh-pass"
+  advanced_feature_enabled = true
+  wifiman_enabled = true
 }

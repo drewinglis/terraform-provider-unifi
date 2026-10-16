@@ -11,6 +11,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/booldefault"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -38,6 +39,9 @@ type SettingMgmtResourceModel struct {
 	XSSHAuthPasswordEnabled types.Bool     `tfsdk:"x_ssh_auth_password_enabled"`
 	XSSHUsername            types.String   `tfsdk:"x_ssh_username"`
 	XSSHPassword            types.String   `tfsdk:"x_ssh_password"`
+	AdvancedFeatureEnabled  types.Bool     `tfsdk:"advanced_feature_enabled"`
+	UnifiIdpEnabled         types.Bool     `tfsdk:"unifi_idp_enabled"`
+	WifimanEnabled          types.Bool     `tfsdk:"wifiman_enabled"`
 	Timeouts                timeouts.Value `tfsdk:"timeouts"`
 }
 
@@ -118,6 +122,30 @@ func (r *SettingMgmtResource) Schema(ctx context.Context, req resource.SchemaReq
 				Sensitive:   true,
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"advanced_feature_enabled": schema.BoolAttribute{
+				Description: "Show advanced features in the UniFi Network UI.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"unifi_idp_enabled": schema.BoolAttribute{
+				Description: "Enable UniFi Identity (IdP) integration.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"wifiman_enabled": schema.BoolAttribute{
+				Description: "Allow the WiFiman app to discover and test against this site's devices.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 		},
@@ -311,6 +339,15 @@ func (r *SettingMgmtResource) planToSDK(plan *SettingMgmtResourceModel) *unifi.S
 	if !plan.XSSHPassword.IsNull() && !plan.XSSHPassword.IsUnknown() {
 		s.XSSHPassword = plan.XSSHPassword.ValueString()
 	}
+	if !plan.AdvancedFeatureEnabled.IsNull() && !plan.AdvancedFeatureEnabled.IsUnknown() {
+		s.AdvancedFeatureEnabled = boolPtr(plan.AdvancedFeatureEnabled.ValueBool())
+	}
+	if !plan.UnifiIdpEnabled.IsNull() && !plan.UnifiIdpEnabled.IsUnknown() {
+		s.UnifiIdpEnabled = boolPtr(plan.UnifiIdpEnabled.ValueBool())
+	}
+	if !plan.WifimanEnabled.IsNull() && !plan.WifimanEnabled.IsUnknown() {
+		s.WifimanEnabled = boolPtr(plan.WifimanEnabled.ValueBool())
+	}
 
 	return s
 }
@@ -331,6 +368,22 @@ func (r *SettingMgmtResource) sdkToState(setting *unifi.SettingMgmt, state *Sett
 		state.AutoUpgradeHour = types.Int64Value(int64(*setting.AutoUpgradeHour))
 	} else {
 		state.AutoUpgradeHour = types.Int64Null()
+	}
+
+	if setting.AdvancedFeatureEnabled != nil {
+		state.AdvancedFeatureEnabled = types.BoolValue(*setting.AdvancedFeatureEnabled)
+	} else {
+		state.AdvancedFeatureEnabled = types.BoolNull()
+	}
+	if setting.UnifiIdpEnabled != nil {
+		state.UnifiIdpEnabled = types.BoolValue(*setting.UnifiIdpEnabled)
+	} else {
+		state.UnifiIdpEnabled = types.BoolNull()
+	}
+	if setting.WifimanEnabled != nil {
+		state.WifimanEnabled = types.BoolValue(*setting.WifimanEnabled)
+	} else {
+		state.WifimanEnabled = types.BoolNull()
 	}
 
 	// x_ssh_password is write-only — never read from API.

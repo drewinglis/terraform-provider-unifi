@@ -3,4 +3,6 @@ resource "unifi_setting_guest_access" "example" {
   portal_customized       = true
   auth                    = "none"
   portal_customized_title = "Welcome to Our Network"
+
+  portal_customized_languages = ["en", "es"]
 }
