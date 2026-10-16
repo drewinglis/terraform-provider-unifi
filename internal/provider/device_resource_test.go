@@ -63,6 +63,34 @@ func TestAccDeviceResource_updateName(t *testing.T) {
 	})
 }
 
+func TestAccDeviceResource_mgmtNetwork(t *testing.T) {
+	mac := testAccGetFirstSwitchMAC(t)
+	if mac == "" {
+		t.Skip("No switch available for testing")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheckSwitch(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccDeviceResourceConfig_configNetwork(mac),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_device.test", "config_network.type", "dhcp"),
+					resource.TestCheckResourceAttrSet("unifi_device.test", "mgmt_network_id"),
+				),
+			},
+			{
+				ResourceName:            "unifi_device.test",
+				ImportState:             true,
+				ImportStateId:           mac,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"timeouts"},
+			},
+		},
+	})
+}
+
 func testAccDeviceResourceConfig_basic(mac string) string {
 	return fmt.Sprintf(`
 %s
@@ -82,4 +110,23 @@ resource "unifi_device" "test" {
   name = %q
 }
 `, testAccProviderConfig, mac, name)
+}
+
+func testAccDeviceResourceConfig_configNetwork(mac string) string {
+	return fmt.Sprintf(`
+%s
+
+data "unifi_network" "default" {
+  name = "Default"
+}
+
+resource "unifi_device" "test" {
+  mac             = %q
+  mgmt_network_id = data.unifi_network.default.id
+
+  config_network = {
+    type = "dhcp"
+  }
+}
+`, testAccProviderConfig, mac)
 }
