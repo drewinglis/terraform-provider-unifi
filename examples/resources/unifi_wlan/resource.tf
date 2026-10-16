@@ -35,6 +35,23 @@ resource "unifi_wlan" "secure" {
   pmf_mode = "required"
 }
 
+# Tune minimum data rates and DTIM periods, e.g. for a dense IoT network
+resource "unifi_wlan" "iot" {
+  name         = "IoT"
+  security     = "wpapsk"
+  wpa_mode     = "wpa2"
+  passphrase   = var.wifi_password
+  ap_group_ids = [data.unifi_ap_group.default.id]
+  wlan_band    = "2g"
+
+  minrate_setting_preference = "manual"
+  minrate_ng_enabled         = true
+  minrate_ng_data_rate_kbps  = 6000
+  dtim_mode                  = "custom"
+  dtim_ng                    = 3
+  mcastenhance_enabled       = true
+}
+
 variable "wifi_password" {
   type      = string
   sensitive = true
