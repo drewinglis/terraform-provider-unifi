@@ -83,6 +83,8 @@ type NetworkResourceModel struct {
 	DHCPStop    types.String `tfsdk:"dhcp_stop"`
 	DHCPLease   types.Int64  `tfsdk:"dhcp_lease"`
 
+	AutoScaleEnabled types.Bool `tfsdk:"auto_scale_enabled"`
+
 	// DHCP DNS
 	DHCPDNSEnabled types.Bool `tfsdk:"dhcp_dns_enabled"`
 	DHCPDNS        types.Set  `tfsdk:"dhcp_dns"`
@@ -119,10 +121,13 @@ type NetworkResourceModel struct {
 	NATEnabled                types.Bool `tfsdk:"nat_enabled"`
 	MDNSEnabled               types.Bool `tfsdk:"mdns_enabled"`
 	UPnPLANEnabled            types.Bool `tfsdk:"upnp_lan_enabled"`
+	LteLANEnabled             types.Bool `tfsdk:"lte_lan_enabled"`
 
 	// Routing
 	NetworkGroup   types.String `tfsdk:"network_group"`
 	FirewallZoneID types.String `tfsdk:"firewall_zone_id"`
+	GatewayType       types.String `tfsdk:"gateway_type"`
+	SettingPreference types.String `tfsdk:"setting_preference"`
 
 	// IPv6
 	IPv6 types.Object `tfsdk:"ipv6"`
@@ -247,6 +252,14 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Default:     int64default.StaticInt64(defaultDHCPLease),
 				PlanModifiers: []planmodifier.Int64{
 					wanNetworkUseState{},
+				},
+			},
+			"auto_scale_enabled": schema.BoolAttribute{
+				Description: "Whether the controller sizes the DHCP range automatically from the subnet.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
 				},
 			},
 
@@ -415,6 +428,14 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 					wanNetworkUseState{},
 				},
 			},
+			"lte_lan_enabled": schema.BoolAttribute{
+				Description: "Whether this network can use the LTE failover connection. Computed by the controller when not set.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
 
 			// Routing
 			"network_group": schema.StringAttribute{
@@ -434,6 +455,30 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Description: "The firewall zone ID to associate with this network. If not specified, the controller assigns a default zone.",
 				Optional:    true,
 				Computed:    true,
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"gateway_type": schema.StringAttribute{
+				Description: "Which device routes this network. Valid values: 'default' (the gateway), 'switch' " +
+					"(a Layer 3 switch). Computed by the controller when not set.",
+				Optional: true,
+				Computed: true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("default", "switch"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"setting_preference": schema.StringAttribute{
+				Description: "Whether the network's settings are chosen automatically or set manually. " +
+					"Valid values: 'auto', 'manual'. Computed by the controller when not set.",
+				Optional: true,
+				Computed: true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("auto", "manual"),
+				},
 				PlanModifiers: []planmodifier.String{
 					stringplanmodifier.UseStateForUnknown(),
 				},
@@ -902,6 +947,9 @@ func (r *NetworkResource) planToSDK(ctx context.Context, plan *NetworkResourceMo
 	if !plan.DHCPLease.IsNull() && !plan.DHCPLease.IsUnknown() {
 		network.DHCPDLeasetime = intPtr(plan.DHCPLease.ValueInt64())
 	}
+	if !plan.AutoScaleEnabled.IsNull() && !plan.AutoScaleEnabled.IsUnknown() {
+		network.AutoScaleEnabled = boolPtr(plan.AutoScaleEnabled.ValueBool())
+	}
 
 	// DHCP DNS
 	if sendLAN(plan.DHCPDNSEnabled) {
@@ -1014,6 +1062,9 @@ func (r *NetworkResource) planToSDK(ctx context.Context, plan *NetworkResourceMo
 	if !plan.UPnPLANEnabled.IsNull() && !plan.UPnPLANEnabled.IsUnknown() {
 		network.UpnpLANEnabled = boolPtr(plan.UPnPLANEnabled.ValueBool())
 	}
+	if !plan.LteLANEnabled.IsNull() && !plan.LteLANEnabled.IsUnknown() {
+		network.LteLANEnabled = boolPtr(plan.LteLANEnabled.ValueBool())
+	}
 
 	// Routing
 	if sendLAN(plan.NetworkGroup) {
@@ -1021,6 +1072,12 @@ func (r *NetworkResource) planToSDK(ctx context.Context, plan *NetworkResourceMo
 	}
 	if !plan.FirewallZoneID.IsNull() {
 		network.FirewallZoneID = plan.FirewallZoneID.ValueString()
+	}
+	if !plan.GatewayType.IsNull() && !plan.GatewayType.IsUnknown() {
+		network.GatewayType = plan.GatewayType.ValueString()
+	}
+	if !plan.SettingPreference.IsNull() && !plan.SettingPreference.IsUnknown() {
+		network.SettingPreference = plan.SettingPreference.ValueString()
 	}
 
 	// IPv6
@@ -1100,6 +1157,11 @@ func (r *NetworkResource) sdkToState(ctx context.Context, network *unifi.Network
 		state.DHCPLease = types.Int64Value(int64(*network.DHCPDLeasetime))
 	} else {
 		state.DHCPLease = types.Int64Value(defaultDHCPLease)
+	}
+	if network.AutoScaleEnabled != nil {
+		state.AutoScaleEnabled = types.BoolValue(*network.AutoScaleEnabled)
+	} else {
+		state.AutoScaleEnabled = types.BoolNull()
 	}
 
 	// DHCP DNS
@@ -1208,10 +1270,17 @@ func (r *NetworkResource) sdkToState(ctx context.Context, network *unifi.Network
 	state.NATEnabled = types.BoolValue(derefBool(network.IsNAT))
 	state.MDNSEnabled = types.BoolValue(derefBool(network.MDNSEnabled))
 	state.UPnPLANEnabled = types.BoolValue(derefBool(network.UpnpLANEnabled))
+	if network.LteLANEnabled != nil {
+		state.LteLANEnabled = types.BoolValue(*network.LteLANEnabled)
+	} else {
+		state.LteLANEnabled = types.BoolNull()
+	}
 
 	// Routing
 	state.NetworkGroup = types.StringValue(network.NetworkGroup)
 	state.FirewallZoneID = stringValueOrNull(network.FirewallZoneID)
+	state.GatewayType = stringValueOrNull(network.GatewayType)
+	state.SettingPreference = stringValueOrNull(network.SettingPreference)
 
 	// IPv6
 	ipv6Obj, d := ipv6ToObject(ctx, network)
