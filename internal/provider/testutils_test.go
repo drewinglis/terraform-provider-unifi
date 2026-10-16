@@ -200,6 +200,28 @@ func testAccGetFirstSwitchMAC(t *testing.T) string {
 	return ""
 }
 
+// testAccGetFirstOutletDeviceMAC returns the MAC of the first device with
+// outlet overrides (e.g. a PDU).
+func testAccGetFirstOutletDeviceMAC(t *testing.T) string {
+	client := testAccGetClient(t)
+	if client == nil {
+		return ""
+	}
+
+	devices, err := client.ListDevices(context.Background())
+	if err != nil || devices == nil {
+		return ""
+	}
+
+	for _, d := range devices.NetworkDevices {
+		device, err := client.GetDeviceByMAC(context.Background(), d.MAC)
+		if err == nil && len(device.OutletOverrides) > 0 {
+			return d.MAC
+		}
+	}
+	return ""
+}
+
 // testAccFirewallZonePairConfig returns configuration for a pair of firewall zones.
 func testAccFirewallZonePairConfig(baseName string) string {
 	return fmt.Sprintf(`

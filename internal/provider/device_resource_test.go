@@ -63,6 +63,44 @@ func TestAccDeviceResource_updateName(t *testing.T) {
 	})
 }
 
+func TestAccDeviceResource_outletOverrides(t *testing.T) {
+	mac := testAccGetFirstOutletDeviceMAC(t)
+	if mac == "" {
+		t.Skip("No device with outlets available for testing")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheckDevice(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: testAccDeviceResourceConfig_outletOverride(mac, "tf-acc-test-outlet", false),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_device.test", "outlet_overrides.#", "1"),
+					resource.TestCheckResourceAttr("unifi_device.test", "outlet_overrides.0.index", "1"),
+					resource.TestCheckResourceAttr("unifi_device.test", "outlet_overrides.0.name", "tf-acc-test-outlet"),
+					resource.TestCheckResourceAttr("unifi_device.test", "outlet_overrides.0.relay_state", "true"),
+					resource.TestCheckResourceAttr("unifi_device.test", "outlet_overrides.0.cycle_enabled", "false"),
+				),
+			},
+			{
+				Config: testAccDeviceResourceConfig_outletOverride(mac, "tf-acc-test-outlet-updated", true),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("unifi_device.test", "outlet_overrides.0.name", "tf-acc-test-outlet-updated"),
+					resource.TestCheckResourceAttr("unifi_device.test", "outlet_overrides.0.cycle_enabled", "true"),
+				),
+			},
+			{
+				ResourceName:            "unifi_device.test",
+				ImportState:             true,
+				ImportStateId:           mac,
+				ImportStateVerify:       true,
+				ImportStateVerifyIgnore: []string{"timeouts"},
+			},
+		},
+	})
+}
+
 func testAccDeviceResourceConfig_basic(mac string) string {
 	return fmt.Sprintf(`
 %s
@@ -82,4 +120,21 @@ resource "unifi_device" "test" {
   name = %q
 }
 `, testAccProviderConfig, mac, name)
+}
+
+func testAccDeviceResourceConfig_outletOverride(mac, name string, cycleEnabled bool) string {
+	return fmt.Sprintf(`
+%s
+
+resource "unifi_device" "test" {
+  mac = %q
+
+  outlet_overrides = [{
+    index         = 1
+    name          = %q
+    relay_state   = true
+    cycle_enabled = %t
+  }]
+}
+`, testAccProviderConfig, mac, name, cycleEnabled)
 }

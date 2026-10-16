@@ -10,3 +10,24 @@ resource "unifi_device" "ap" {
   name         = "Lobby AP"
   led_override = "off"
 }
+
+# Name and configure PDU outlets
+resource "unifi_device" "pdu" {
+  mac  = "aa:bb:cc:dd:ee:03"
+  name = "Rack PDU"
+
+  outlet_overrides = [
+    {
+      index         = 1
+      name          = "Gateway"
+      relay_state   = true
+      cycle_enabled = false
+    },
+    {
+      index         = 2
+      name          = "Core Switch"
+      relay_state   = true
+      cycle_enabled = true
+    },
+  ]
+}

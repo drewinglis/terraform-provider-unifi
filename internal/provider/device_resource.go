@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -40,6 +41,7 @@ type DeviceResourceModel struct {
 	SNMPContact                types.String   `tfsdk:"snmp_contact"`
 	SNMPLocation               types.String   `tfsdk:"snmp_location"`
 	RadioOverrides             types.List     `tfsdk:"radio_overrides"`
+	OutletOverrides            types.List     `tfsdk:"outlet_overrides"`
 	SiteID                     types.String   `tfsdk:"site_id"`
 	Model                      types.String   `tfsdk:"model"`
 	Type                       types.String   `tfsdk:"type"`
@@ -80,6 +82,29 @@ var radioOverrideAttrTypes = map[string]attr.Type{
 	"load_balance_enabled":     types.BoolType,
 	"hard_noise_floor_enabled": types.BoolType,
 	"sens_level_enabled":       types.BoolType,
+}
+
+type OutletOverrideModel struct {
+	Index        types.Int64  `tfsdk:"index"`
+	Name         types.String `tfsdk:"name"`
+	RelayState   types.Bool   `tfsdk:"relay_state"`
+	CycleEnabled types.Bool   `tfsdk:"cycle_enabled"`
+}
+
+var outletOverrideAttrTypes = map[string]attr.Type{
+	"index":         types.Int64Type,
+	"name":          types.StringType,
+	"relay_state":   types.BoolType,
+	"cycle_enabled": types.BoolType,
+}
+
+// outletOverride is the controller's outlet_overrides element. The SDK carries
+// these as raw JSON, so the provider owns the shape.
+type outletOverride struct {
+	Index        int     `json:"index"`
+	Name         *string `json:"name,omitempty"`
+	RelayState   *bool   `json:"relay_state,omitempty"`
+	CycleEnabled *bool   `json:"cycle_enabled,omitempty"`
 }
 
 func NewDeviceResource() resource.Resource {
@@ -249,6 +274,43 @@ func (r *DeviceResource) Schema(ctx context.Context, req resource.SchemaRequest,
 						},
 						"sens_level_enabled": schema.BoolAttribute{
 							Description: "Enable sensitivity level.",
+							Optional:    true,
+							Computed:    true,
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
+						},
+					},
+				},
+			},
+			"outlet_overrides": schema.ListNestedAttribute{
+				Description: "Outlet configuration overrides for PDUs and other devices with switchable power outlets.",
+				Optional:    true,
+				Computed:    true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"index": schema.Int64Attribute{
+							Description: "Outlet index (1-based).",
+							Required:    true,
+						},
+						"name": schema.StringAttribute{
+							Description: "Outlet name.",
+							Optional:    true,
+							Computed:    true,
+							PlanModifiers: []planmodifier.String{
+								stringplanmodifier.UseStateForUnknown(),
+							},
+						},
+						"relay_state": schema.BoolAttribute{
+							Description: "Whether the outlet relay is on (outlet powered).",
+							Optional:    true,
+							Computed:    true,
+							PlanModifiers: []planmodifier.Bool{
+								boolplanmodifier.UseStateForUnknown(),
+							},
+						},
+						"cycle_enabled": schema.BoolAttribute{
+							Description: "Enable automatic power cycling of the outlet when the connected device stops responding.",
 							Optional:    true,
 							Computed:    true,
 							PlanModifiers: []planmodifier.Bool{
@@ -524,7 +586,66 @@ func (r *DeviceResource) planToSDK(ctx context.Context, plan *DeviceResourceMode
 		}
 	}
 
+	if !plan.OutletOverrides.IsNull() && !plan.OutletOverrides.IsUnknown() {
+		var overrides []OutletOverrideModel
+		diags.Append(plan.OutletOverrides.ElementsAs(ctx, &overrides, false)...)
+		raw, err := outletOverridesToSDK(overrides)
+		if err != nil {
+			diags.AddError("Invalid Outlet Overrides", err.Error())
+		}
+		device.OutletOverrides = raw
+	}
+
 	return device
+}
+
+func outletOverridesToSDK(overrides []OutletOverrideModel) ([]json.RawMessage, error) {
+	raw := make([]json.RawMessage, 0, len(overrides))
+	for _, o := range overrides {
+		oo := outletOverride{
+			Index: int(o.Index.ValueInt64()),
+		}
+		if !o.Name.IsNull() && !o.Name.IsUnknown() {
+			oo.Name = o.Name.ValueStringPointer()
+		}
+		if !o.RelayState.IsNull() && !o.RelayState.IsUnknown() {
+			oo.RelayState = boolPtr(o.RelayState.ValueBool())
+		}
+		if !o.CycleEnabled.IsNull() && !o.CycleEnabled.IsUnknown() {
+			oo.CycleEnabled = boolPtr(o.CycleEnabled.ValueBool())
+		}
+		b, err := json.Marshal(oo)
+		if err != nil {
+			return nil, fmt.Errorf("encoding outlet override %d: %w", oo.Index, err)
+		}
+		raw = append(raw, b)
+	}
+	return raw, nil
+}
+
+func outletOverridesFromSDK(raw []json.RawMessage) (types.List, diag.Diagnostics) {
+	var diags diag.Diagnostics
+	objType := types.ObjectType{AttrTypes: outletOverrideAttrTypes}
+
+	values := make([]attr.Value, 0, len(raw))
+	for i, r := range raw {
+		var oo outletOverride
+		if err := json.Unmarshal(r, &oo); err != nil {
+			diags.AddError("Invalid Outlet Override", fmt.Sprintf("decoding outlet override %d: %s", i, err))
+			continue
+		}
+		obj, d := types.ObjectValue(outletOverrideAttrTypes, map[string]attr.Value{
+			"index":         types.Int64Value(int64(oo.Index)),
+			"name":          types.StringPointerValue(oo.Name),
+			"relay_state":   types.BoolPointerValue(oo.RelayState),
+			"cycle_enabled": types.BoolPointerValue(oo.CycleEnabled),
+		})
+		diags.Append(d...)
+		values = append(values, obj)
+	}
+	list, d := types.ListValue(objType, values)
+	diags.Append(d...)
+	return list, diags
 }
 
 func (r *DeviceResource) sdkToState(ctx context.Context, device *unifi.DeviceConfig, state *DeviceResourceModel) diag.Diagnostics {
@@ -606,6 +727,10 @@ func (r *DeviceResource) sdkToState(ctx context.Context, device *unifi.DeviceCon
 	} else {
 		state.RadioOverrides = types.ListValueMust(types.ObjectType{AttrTypes: radioOverrideAttrTypes}, []attr.Value{})
 	}
+
+	outlets, d := outletOverridesFromSDK(device.OutletOverrides)
+	diags.Append(d...)
+	state.OutletOverrides = outlets
 
 	return diags
 }
