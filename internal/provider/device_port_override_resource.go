@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/terraform-plugin-framework/path"
 	"github.com/hashicorp/terraform-plugin-framework/resource"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema"
+	"github.com/hashicorp/terraform-plugin-framework/resource/schema/boolplanmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/int64planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/planmodifier"
 	"github.com/hashicorp/terraform-plugin-framework/resource/schema/stringplanmodifier"
@@ -51,6 +52,17 @@ type DevicePortOverrideResourceModel struct {
 	EgressRateLimitKbps      types.Int64  `tfsdk:"egress_rate_limit_kbps"`
 	PortSecurityEnabled      types.Bool   `tfsdk:"port_security_enabled"`
 	PortSecurityMacAddresses types.Set    `tfsdk:"port_security_mac_addresses"`
+	SettingPreference        types.String `tfsdk:"setting_preference"`
+	Forward                  types.String `tfsdk:"forward"`
+	TaggedVlanMgmt           types.String `tfsdk:"tagged_vlan_mgmt"`
+	LldpmedEnabled           types.Bool   `tfsdk:"lldpmed_enabled"`
+	PortKeepaliveEnabled     types.Bool   `tfsdk:"port_keepalive_enabled"`
+	StormctrlBcastEnabled    types.Bool   `tfsdk:"stormctrl_bcast_enabled"`
+	StormctrlBcastRate       types.Int64  `tfsdk:"stormctrl_bcast_rate"`
+	StormctrlMcastEnabled    types.Bool   `tfsdk:"stormctrl_mcast_enabled"`
+	StormctrlMcastRate       types.Int64  `tfsdk:"stormctrl_mcast_rate"`
+	StormctrlUcastEnabled    types.Bool   `tfsdk:"stormctrl_ucast_enabled"`
+	StormctrlUcastRate       types.Int64  `tfsdk:"stormctrl_ucast_rate"`
 }
 
 func NewDevicePortOverrideResource() resource.Resource {
@@ -180,6 +192,103 @@ func (r *DevicePortOverrideResource) Schema(ctx context.Context, req resource.Sc
 				Description: "Set of allowed MAC addresses when port security is enabled.",
 				Optional:    true,
 				ElementType: types.StringType,
+			},
+			"setting_preference": schema.StringAttribute{
+				Description: "Whether the port uses its profile's settings ('auto') or the per-port settings in this override ('manual'). Valid values: 'auto', 'manual'. Defaults to 'manual' when not set on create.",
+				Optional:    true,
+				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("auto", "manual"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"forward": schema.StringAttribute{
+				Description: "VLAN forwarding mode for this port. Valid values: 'all' (all networks), 'native' (native network only), 'customize' (use native_network_id, tagged_vlan_mgmt and the tagged/excluded network IDs), 'disabled'.",
+				Optional:    true,
+				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("all", "native", "customize", "disabled"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"tagged_vlan_mgmt": schema.StringAttribute{
+				Description: "Tagged VLAN management mode. Valid values: 'auto' (allow all VLANs), 'block_all' (block all tagged VLANs), 'custom' (allow all except excluded).",
+				Optional:    true,
+				Computed:    true,
+				Validators: []validator.String{
+					stringvalidator.OneOf("auto", "block_all", "custom"),
+				},
+				PlanModifiers: []planmodifier.String{
+					stringplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"lldpmed_enabled": schema.BoolAttribute{
+				Description: "Enable LLDP-MED (Link Layer Discovery Protocol - Media Endpoint Discovery).",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"port_keepalive_enabled": schema.BoolAttribute{
+				Description: "Enable port keepalive.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"stormctrl_bcast_enabled": schema.BoolAttribute{
+				Description: "Enable broadcast storm control.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"stormctrl_bcast_rate": schema.Int64Attribute{
+				Description: "Broadcast storm control rate limit.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+			},
+			"stormctrl_mcast_enabled": schema.BoolAttribute{
+				Description: "Enable multicast storm control.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"stormctrl_mcast_rate": schema.Int64Attribute{
+				Description: "Multicast storm control rate limit.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
+			},
+			"stormctrl_ucast_enabled": schema.BoolAttribute{
+				Description: "Enable unicast storm control.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"stormctrl_ucast_rate": schema.Int64Attribute{
+				Description: "Unicast storm control rate limit.",
+				Optional:    true,
+				Computed:    true,
+				PlanModifiers: []planmodifier.Int64{
+					int64planmodifier.UseStateForUnknown(),
+				},
 			},
 		},
 	}
@@ -439,6 +548,50 @@ func (r *DevicePortOverrideResource) planToSDK(ctx context.Context, plan *Device
 		SettingPreference: "manual",
 	}
 
+	if !plan.SettingPreference.IsNull() && !plan.SettingPreference.IsUnknown() {
+		override.SettingPreference = plan.SettingPreference.ValueString()
+	}
+
+	if !plan.Forward.IsNull() && !plan.Forward.IsUnknown() {
+		override.Forward = plan.Forward.ValueString()
+	}
+
+	if !plan.TaggedVlanMgmt.IsNull() && !plan.TaggedVlanMgmt.IsUnknown() {
+		override.TaggedVlanMgmt = plan.TaggedVlanMgmt.ValueString()
+	}
+
+	if !plan.LldpmedEnabled.IsNull() && !plan.LldpmedEnabled.IsUnknown() {
+		override.LldpmedEnabled = boolPtr(plan.LldpmedEnabled.ValueBool())
+	}
+
+	if !plan.PortKeepaliveEnabled.IsNull() && !plan.PortKeepaliveEnabled.IsUnknown() {
+		override.PortKeepaliveEnabled = boolPtr(plan.PortKeepaliveEnabled.ValueBool())
+	}
+
+	if !plan.StormctrlBcastEnabled.IsNull() && !plan.StormctrlBcastEnabled.IsUnknown() {
+		override.StormctrlBcastEnabled = boolPtr(plan.StormctrlBcastEnabled.ValueBool())
+	}
+
+	if !plan.StormctrlBcastRate.IsNull() && !plan.StormctrlBcastRate.IsUnknown() {
+		override.StormctrlBcastRate = intPtr(plan.StormctrlBcastRate.ValueInt64())
+	}
+
+	if !plan.StormctrlMcastEnabled.IsNull() && !plan.StormctrlMcastEnabled.IsUnknown() {
+		override.StormctrlMcastEnabled = boolPtr(plan.StormctrlMcastEnabled.ValueBool())
+	}
+
+	if !plan.StormctrlMcastRate.IsNull() && !plan.StormctrlMcastRate.IsUnknown() {
+		override.StormctrlMcastRate = intPtr(plan.StormctrlMcastRate.ValueInt64())
+	}
+
+	if !plan.StormctrlUcastEnabled.IsNull() && !plan.StormctrlUcastEnabled.IsUnknown() {
+		override.StormctrlUcastEnabled = boolPtr(plan.StormctrlUcastEnabled.ValueBool())
+	}
+
+	if !plan.StormctrlUcastRate.IsNull() && !plan.StormctrlUcastRate.IsUnknown() {
+		override.StormctrlUcastRate = intPtr(plan.StormctrlUcastRate.ValueInt64())
+	}
+
 	if !plan.Name.IsNull() {
 		override.Name = plan.Name.ValueString()
 	}
@@ -549,6 +702,50 @@ func (r *DevicePortOverrideResource) sdkToState(ctx context.Context, override *u
 	state.OpMode = stringValueOrNull(override.OpMode)
 	state.NativeNetworkID = stringValueOrNull(override.NativeNetworkconfID)
 	state.VoiceNetworkID = stringValueOrNull(override.VoiceNetworkconfID)
+	state.SettingPreference = stringValueOrNull(override.SettingPreference)
+	state.Forward = stringValueOrNull(override.Forward)
+	state.TaggedVlanMgmt = stringValueOrNull(override.TaggedVlanMgmt)
+
+	if override.LldpmedEnabled != nil {
+		state.LldpmedEnabled = types.BoolValue(*override.LldpmedEnabled)
+	} else {
+		state.LldpmedEnabled = types.BoolNull()
+	}
+	if override.PortKeepaliveEnabled != nil {
+		state.PortKeepaliveEnabled = types.BoolValue(*override.PortKeepaliveEnabled)
+	} else {
+		state.PortKeepaliveEnabled = types.BoolNull()
+	}
+	if override.StormctrlBcastEnabled != nil {
+		state.StormctrlBcastEnabled = types.BoolValue(*override.StormctrlBcastEnabled)
+	} else {
+		state.StormctrlBcastEnabled = types.BoolNull()
+	}
+	if override.StormctrlBcastRate != nil {
+		state.StormctrlBcastRate = types.Int64Value(int64(*override.StormctrlBcastRate))
+	} else {
+		state.StormctrlBcastRate = types.Int64Null()
+	}
+	if override.StormctrlMcastEnabled != nil {
+		state.StormctrlMcastEnabled = types.BoolValue(*override.StormctrlMcastEnabled)
+	} else {
+		state.StormctrlMcastEnabled = types.BoolNull()
+	}
+	if override.StormctrlMcastRate != nil {
+		state.StormctrlMcastRate = types.Int64Value(int64(*override.StormctrlMcastRate))
+	} else {
+		state.StormctrlMcastRate = types.Int64Null()
+	}
+	if override.StormctrlUcastEnabled != nil {
+		state.StormctrlUcastEnabled = types.BoolValue(*override.StormctrlUcastEnabled)
+	} else {
+		state.StormctrlUcastEnabled = types.BoolNull()
+	}
+	if override.StormctrlUcastRate != nil {
+		state.StormctrlUcastRate = types.Int64Value(int64(*override.StormctrlUcastRate))
+	} else {
+		state.StormctrlUcastRate = types.Int64Null()
+	}
 
 	if len(override.AggregateMembers) > 0 {
 		members := make([]int64, len(override.AggregateMembers))
