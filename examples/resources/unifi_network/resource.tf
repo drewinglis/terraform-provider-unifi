@@ -17,3 +17,14 @@ resource "unifi_network" "vlan_only" {
   purpose = "vlan-only"
   vlan_id = 200
 }
+
+# Manage the settings of an existing WAN network (WAN networks are created by
+# the controller, so import them). LAN settings such as DHCP don't apply.
+resource "unifi_network" "internet_2" {
+  name                  = "Internet 2"
+  purpose               = "wan"
+  wan_type              = "dhcp"
+  wan_network_group     = "WAN2"
+  wan_load_balance_type = "failover-only"
+  wan_failover_priority = 2
+}
