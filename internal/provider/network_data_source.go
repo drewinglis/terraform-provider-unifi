@@ -37,6 +37,8 @@ type NetworkDataSourceModel struct {
 	DHCPStop    types.String `tfsdk:"dhcp_stop"`
 	DHCPLease   types.Int64  `tfsdk:"dhcp_lease"`
 
+	AutoScaleEnabled types.Bool `tfsdk:"auto_scale_enabled"`
+
 	// DHCP DNS
 	DHCPDNSEnabled types.Bool `tfsdk:"dhcp_dns_enabled"`
 	DHCPDNS        types.Set  `tfsdk:"dhcp_dns"`
@@ -73,13 +75,32 @@ type NetworkDataSourceModel struct {
 	NATEnabled                types.Bool `tfsdk:"nat_enabled"`
 	MDNSEnabled               types.Bool `tfsdk:"mdns_enabled"`
 	UPnPLANEnabled            types.Bool `tfsdk:"upnp_lan_enabled"`
+	LteLANEnabled             types.Bool `tfsdk:"lte_lan_enabled"`
 
 	// Routing
-	NetworkGroup   types.String `tfsdk:"network_group"`
-	FirewallZoneID types.String `tfsdk:"firewall_zone_id"`
+	NetworkGroup      types.String `tfsdk:"network_group"`
+	FirewallZoneID    types.String `tfsdk:"firewall_zone_id"`
+	GatewayType       types.String `tfsdk:"gateway_type"`
+	SettingPreference types.String `tfsdk:"setting_preference"`
 
 	// IPv6
 	IPv6 types.Object `tfsdk:"ipv6"`
+
+	// WAN
+	WANType              types.String `tfsdk:"wan_type"`
+	WANTypeV6            types.String `tfsdk:"wan_type_v6"`
+	WANNetworkGroup      types.String `tfsdk:"wan_network_group"`
+	WANDNSPreference     types.String `tfsdk:"wan_dns_preference"`
+	WANIPv6DNSPreference types.String `tfsdk:"wan_ipv6_dns_preference"`
+	WANLoadBalanceType   types.String `tfsdk:"wan_load_balance_type"`
+	WANLoadBalanceWeight types.Int64  `tfsdk:"wan_load_balance_weight"`
+	WANFailoverPriority  types.Int64  `tfsdk:"wan_failover_priority"`
+	WANSmartQEnabled     types.Bool   `tfsdk:"wan_smartq_enabled"`
+	WANVLANEnabled       types.Bool   `tfsdk:"wan_vlan_enabled"`
+	WANDHCPv6PDSizeAuto  types.Bool   `tfsdk:"wan_dhcpv6_pd_size_auto"`
+	ReportWANEvent       types.Bool   `tfsdk:"report_wan_event"`
+	MACOverrideEnabled   types.Bool   `tfsdk:"mac_override_enabled"`
+	RoutingTableID       types.Int64  `tfsdk:"routing_table_id"`
 }
 
 func NewNetworkDataSource() datasource.DataSource {
@@ -145,6 +166,10 @@ func (d *NetworkDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 			},
 			"dhcp_lease": schema.Int64Attribute{
 				Description: "The DHCP lease time in seconds.",
+				Computed:    true,
+			},
+			"auto_scale_enabled": schema.BoolAttribute{
+				Description: "Whether the controller sizes the DHCP range automatically from the subnet.",
 				Computed:    true,
 			},
 
@@ -255,20 +280,32 @@ func (d *NetworkDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 				Description: "Whether UPnP is enabled on this LAN network.",
 				Computed:    true,
 			},
+			"lte_lan_enabled": schema.BoolAttribute{
+				Description: "Whether this network can use the LTE failover connection.",
+				Computed:    true,
+			},
 
 			// Routing
 			"network_group": schema.StringAttribute{
-				Description: "The network group (LAN, WAN, WAN2).",
+				Description: "The network group (LAN, WAN, WAN2). Null for WAN networks, which use wan_network_group.",
 				Computed:    true,
 			},
 			"firewall_zone_id": schema.StringAttribute{
 				Description: "The firewall zone ID associated with this network.",
 				Computed:    true,
 			},
+			"gateway_type": schema.StringAttribute{
+				Description: "Which device routes this network (default: the gateway, switch: a Layer 3 switch).",
+				Computed:    true,
+			},
+			"setting_preference": schema.StringAttribute{
+				Description: "Whether the network's settings are chosen automatically or set manually (auto, manual).",
+				Computed:    true,
+			},
 
 			// IPv6
 			"ipv6": schema.SingleNestedAttribute{
-				Description: "IPv6 configuration for this network.",
+				Description: "IPv6 configuration for this network. Null for WAN networks.",
 				Computed:    true,
 				Attributes: map[string]schema.Attribute{
 					"interface_type": schema.StringAttribute{
@@ -357,6 +394,64 @@ func (d *NetworkDataSource) Schema(ctx context.Context, req datasource.SchemaReq
 						Computed:    true,
 					},
 				},
+			},
+
+			// WAN
+			"wan_type": schema.StringAttribute{
+				Description: "WAN IPv4 connection type (WAN networks only).",
+				Computed:    true,
+			},
+			"wan_type_v6": schema.StringAttribute{
+				Description: "WAN IPv6 connection type (WAN networks only).",
+				Computed:    true,
+			},
+			"wan_network_group": schema.StringAttribute{
+				Description: "The WAN interface group this WAN network belongs to (e.g. WAN, WAN2).",
+				Computed:    true,
+			},
+			"wan_dns_preference": schema.StringAttribute{
+				Description: "How the WAN obtains IPv4 DNS servers (e.g. auto, manual).",
+				Computed:    true,
+			},
+			"wan_ipv6_dns_preference": schema.StringAttribute{
+				Description: "How the WAN obtains IPv6 DNS servers (e.g. auto, manual).",
+				Computed:    true,
+			},
+			"wan_load_balance_type": schema.StringAttribute{
+				Description: "Multi-WAN mode for this WAN (failover-only, weighted).",
+				Computed:    true,
+			},
+			"wan_load_balance_weight": schema.Int64Attribute{
+				Description: "Share of traffic sent to this WAN when wan_load_balance_type is weighted.",
+				Computed:    true,
+			},
+			"wan_failover_priority": schema.Int64Attribute{
+				Description: "Failover order of this WAN; lower values are preferred.",
+				Computed:    true,
+			},
+			"wan_smartq_enabled": schema.BoolAttribute{
+				Description: "Whether Smart Queues (SQM) is enabled on this WAN.",
+				Computed:    true,
+			},
+			"wan_vlan_enabled": schema.BoolAttribute{
+				Description: "Whether this WAN connection is VLAN-tagged.",
+				Computed:    true,
+			},
+			"wan_dhcpv6_pd_size_auto": schema.BoolAttribute{
+				Description: "Whether the DHCPv6 prefix delegation size is chosen automatically.",
+				Computed:    true,
+			},
+			"report_wan_event": schema.BoolAttribute{
+				Description: "Whether the controller reports events (e.g. failover) for this WAN.",
+				Computed:    true,
+			},
+			"mac_override_enabled": schema.BoolAttribute{
+				Description: "Whether the WAN interface uses an overridden MAC address.",
+				Computed:    true,
+			},
+			"routing_table_id": schema.Int64Attribute{
+				Description: "The routing table the controller assigned to this WAN.",
+				Computed:    true,
 			},
 		},
 	}
@@ -464,6 +559,11 @@ func (d *NetworkDataSource) sdkToState(ctx context.Context, network *unifi.Netwo
 		state.DHCPLease = types.Int64Value(int64(*network.DHCPDLeasetime))
 	} else {
 		state.DHCPLease = types.Int64Null()
+	}
+	if network.AutoScaleEnabled != nil {
+		state.AutoScaleEnabled = types.BoolValue(*network.AutoScaleEnabled)
+	} else {
+		state.AutoScaleEnabled = types.BoolNull()
 	}
 
 	// DHCP DNS
@@ -580,10 +680,17 @@ func (d *NetworkDataSource) sdkToState(ctx context.Context, network *unifi.Netwo
 	} else {
 		state.UPnPLANEnabled = types.BoolNull()
 	}
+	if network.LteLANEnabled != nil {
+		state.LteLANEnabled = types.BoolValue(*network.LteLANEnabled)
+	} else {
+		state.LteLANEnabled = types.BoolNull()
+	}
 
 	// Routing
 	state.NetworkGroup = types.StringValue(network.NetworkGroup)
 	state.FirewallZoneID = stringValueOrNull(network.FirewallZoneID)
+	state.GatewayType = stringValueOrNull(network.GatewayType)
+	state.SettingPreference = stringValueOrNull(network.SettingPreference)
 
 	// IPv6
 	ipv6Obj, ipv6Diags := ipv6ToObject(ctx, network)
@@ -592,6 +699,72 @@ func (d *NetworkDataSource) sdkToState(ctx context.Context, network *unifi.Netwo
 		return diags
 	}
 	state.IPv6 = ipv6Obj
+
+	// WAN
+	state.WANType = stringValueOrNull(network.WANType)
+	state.WANTypeV6 = stringValueOrNull(network.WANTypeV6)
+	state.WANNetworkGroup = stringValueOrNull(network.WANNetworkGroup)
+	state.WANDNSPreference = stringValueOrNull(network.WANDNSPreference)
+	state.WANIPv6DNSPreference = stringValueOrNull(network.WANIPv6DNSPreference)
+	state.WANLoadBalanceType = stringValueOrNull(network.WANLoadBalanceType)
+	if network.WANLoadBalanceWeight != nil {
+		state.WANLoadBalanceWeight = types.Int64Value(int64(*network.WANLoadBalanceWeight))
+	} else {
+		state.WANLoadBalanceWeight = types.Int64Null()
+	}
+	if network.WANFailoverPriority != nil {
+		state.WANFailoverPriority = types.Int64Value(int64(*network.WANFailoverPriority))
+	} else {
+		state.WANFailoverPriority = types.Int64Null()
+	}
+	if network.WANSmartQEnabled != nil {
+		state.WANSmartQEnabled = types.BoolValue(*network.WANSmartQEnabled)
+	} else {
+		state.WANSmartQEnabled = types.BoolNull()
+	}
+	if network.WANVLANEnabled != nil {
+		state.WANVLANEnabled = types.BoolValue(*network.WANVLANEnabled)
+	} else {
+		state.WANVLANEnabled = types.BoolNull()
+	}
+	if network.WANDHCPv6PDSizeAuto != nil {
+		state.WANDHCPv6PDSizeAuto = types.BoolValue(*network.WANDHCPv6PDSizeAuto)
+	} else {
+		state.WANDHCPv6PDSizeAuto = types.BoolNull()
+	}
+	if network.ReportWANEvent != nil {
+		state.ReportWANEvent = types.BoolValue(*network.ReportWANEvent)
+	} else {
+		state.ReportWANEvent = types.BoolNull()
+	}
+	if network.MACOverrideEnabled != nil {
+		state.MACOverrideEnabled = types.BoolValue(*network.MACOverrideEnabled)
+	} else {
+		state.MACOverrideEnabled = types.BoolNull()
+	}
+	if network.RoutingTableID != nil {
+		state.RoutingTableID = types.Int64Value(int64(*network.RoutingTableID))
+	} else {
+		state.RoutingTableID = types.Int64Null()
+	}
+
+	// WAN networks have none of the LAN settings; report them as null rather
+	// than the false/empty defaults filled in above.
+	if network.Purpose == "wan" {
+		nullIfNil := func(p *bool, v *types.Bool) {
+			if p == nil {
+				*v = types.BoolNull()
+			}
+		}
+		nullIfNil(network.Enabled, &state.Enabled)
+		nullIfNil(network.DHCPDEnabled, &state.DHCPEnabled)
+		nullIfNil(network.IGMPSnooping, &state.IGMPSnooping)
+		nullIfNil(network.InternetAccessEnabled, &state.InternetAccessEnabled)
+		nullIfNil(network.IntraNetworkAccessEnabled, &state.IntraNetworkAccessEnabled)
+		nullIfNil(network.IsNAT, &state.NATEnabled)
+		state.NetworkGroup = stringValueOrNull(network.NetworkGroup)
+		state.IPv6 = types.ObjectNull(ipv6AttrTypes)
+	}
 
 	return diags
 }

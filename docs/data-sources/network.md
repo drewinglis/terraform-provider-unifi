@@ -38,6 +38,7 @@ output "network_vlan" {
 
 ### Read-Only
 
+- `auto_scale_enabled` (Boolean) Whether the controller sizes the DHCP range automatically from the subnet.
 - `dhcp_boot_enabled` (Boolean) Whether DHCP network boot (PXE) is enabled.
 - `dhcp_boot_filename` (String) The boot filename provided to clients (DHCP Option 67).
 - `dhcp_boot_server` (String) The IP address of the PXE boot server (DHCP Option 66).
@@ -60,19 +61,36 @@ output "network_vlan" {
 - `domain_name` (String) The domain name for this network.
 - `enabled` (Boolean) Whether the network is enabled.
 - `firewall_zone_id` (String) The firewall zone ID associated with this network.
+- `gateway_type` (String) Which device routes this network (default: the gateway, switch: a Layer 3 switch).
 - `igmp_proxy_upstream` (Boolean) Whether this network acts as an IGMP proxy upstream interface.
 - `igmp_snooping` (Boolean) Whether IGMP snooping is enabled.
 - `internet_access_enabled` (Boolean) Whether internet access is enabled for this network.
 - `intra_network_access_enabled` (Boolean) Whether devices on this network can communicate with devices on other networks.
-- `ipv6` (Attributes) IPv6 configuration for this network. (see [below for nested schema](#nestedatt--ipv6))
+- `ipv6` (Attributes) IPv6 configuration for this network. Null for WAN networks. (see [below for nested schema](#nestedatt--ipv6))
+- `lte_lan_enabled` (Boolean) Whether this network can use the LTE failover connection.
+- `mac_override_enabled` (Boolean) Whether the WAN interface uses an overridden MAC address.
 - `mdns_enabled` (Boolean) Whether mDNS (Bonjour/Avahi) is enabled for this network.
 - `nat_enabled` (Boolean) Whether NAT is enabled for this network.
-- `network_group` (String) The network group (LAN, WAN, WAN2).
+- `network_group` (String) The network group (LAN, WAN, WAN2). Null for WAN networks, which use wan_network_group.
 - `purpose` (String) The purpose of the network (corporate, guest, wan, vlan-only).
+- `report_wan_event` (Boolean) Whether the controller reports events (e.g. failover) for this WAN.
+- `routing_table_id` (Number) The routing table the controller assigned to this WAN.
+- `setting_preference` (String) Whether the network's settings are chosen automatically or set manually (auto, manual).
 - `site_id` (String) The site ID where the network exists.
 - `subnet` (String) The subnet in CIDR notation.
 - `upnp_lan_enabled` (Boolean) Whether UPnP is enabled on this LAN network.
 - `vlan_id` (Number) The VLAN ID for this network.
+- `wan_dhcpv6_pd_size_auto` (Boolean) Whether the DHCPv6 prefix delegation size is chosen automatically.
+- `wan_dns_preference` (String) How the WAN obtains IPv4 DNS servers (e.g. auto, manual).
+- `wan_failover_priority` (Number) Failover order of this WAN; lower values are preferred.
+- `wan_ipv6_dns_preference` (String) How the WAN obtains IPv6 DNS servers (e.g. auto, manual).
+- `wan_load_balance_type` (String) Multi-WAN mode for this WAN (failover-only, weighted).
+- `wan_load_balance_weight` (Number) Share of traffic sent to this WAN when wan_load_balance_type is weighted.
+- `wan_network_group` (String) The WAN interface group this WAN network belongs to (e.g. WAN, WAN2).
+- `wan_smartq_enabled` (Boolean) Whether Smart Queues (SQM) is enabled on this WAN.
+- `wan_type` (String) WAN IPv4 connection type (WAN networks only).
+- `wan_type_v6` (String) WAN IPv6 connection type (WAN networks only).
+- `wan_vlan_enabled` (Boolean) Whether this WAN connection is VLAN-tagged.
 
 <a id="nestedatt--ipv6"></a>
 ### Nested Schema for `ipv6`
