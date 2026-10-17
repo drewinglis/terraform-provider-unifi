@@ -68,6 +68,7 @@ output "network_vlan" {
 - `mdns_enabled` (Boolean) Whether mDNS (Bonjour/Avahi) is enabled for this network.
 - `nat_enabled` (Boolean) Whether NAT is enabled for this network.
 - `network_group` (String) The network group (LAN, WAN, WAN2).
+- `network_isolation_enabled` (Boolean) Whether the network is isolated from other local networks.
 - `purpose` (String) The purpose of the network (corporate, guest, wan, vlan-only).
 - `site_id` (String) The site ID where the network exists.
 - `subnet` (String) The subnet in CIDR notation.
