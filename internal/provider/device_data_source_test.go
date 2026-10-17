@@ -24,6 +24,8 @@ func TestAccDeviceDataSource_byMAC(t *testing.T) {
 					resource.TestCheckResourceAttrSet("data.unifi_device.test", "id"),
 					resource.TestCheckResourceAttr("data.unifi_device.test", "mac", mac),
 					resource.TestCheckResourceAttrSet("data.unifi_device.test", "type"),
+					resource.TestCheckResourceAttrSet("data.unifi_device.test", "config_network.type"),
+					resource.TestCheckResourceAttrSet("data.unifi_device.test", "outlet_overrides.#"),
 				),
 			},
 		},

@@ -54,3 +54,5 @@ output "user_fixed_ip" {
 - `site_id` (String) The site ID where the user exists.
 - `use_fixed_ip` (Boolean) Whether DHCP reservation is enabled for this device.
 - `usergroup_id` (String) The user group ID for bandwidth limiting.
+- `virtual_network_override_enabled` (Boolean) Whether this client is placed on virtual_network_override_id instead of the network of the WLAN or switch port it connects through.
+- `virtual_network_override_id` (String) The network ID this client is placed on when virtual_network_override_enabled is true.
