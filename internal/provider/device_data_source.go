@@ -2,10 +2,12 @@ package provider
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 
 	"github.com/hashicorp/terraform-plugin-framework-validators/stringvalidator"
+	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
 	"github.com/hashicorp/terraform-plugin-framework/diag"
@@ -22,16 +24,37 @@ type DeviceDataSource struct {
 }
 
 type DeviceDataSourceModel struct {
-	ID      types.String `tfsdk:"id"`
-	SiteID  types.String `tfsdk:"site_id"`
-	MAC     types.String `tfsdk:"mac"`
-	Name    types.String `tfsdk:"name"`
-	Model   types.String `tfsdk:"model"`
-	Type    types.String `tfsdk:"type"`
-	Version types.String `tfsdk:"version"`
-	IP      types.String `tfsdk:"ip"`
-	Adopted types.Bool   `tfsdk:"adopted"`
-	State   types.Int64  `tfsdk:"state"`
+	ID              types.String `tfsdk:"id"`
+	SiteID          types.String `tfsdk:"site_id"`
+	MAC             types.String `tfsdk:"mac"`
+	Name            types.String `tfsdk:"name"`
+	Model           types.String `tfsdk:"model"`
+	Type            types.String `tfsdk:"type"`
+	Version         types.String `tfsdk:"version"`
+	IP              types.String `tfsdk:"ip"`
+	Adopted         types.Bool   `tfsdk:"adopted"`
+	State           types.Int64  `tfsdk:"state"`
+	MgmtNetworkID   types.String `tfsdk:"mgmt_network_id"`
+	ConfigNetwork   types.Object `tfsdk:"config_network"`
+	OutletOverrides types.List   `tfsdk:"outlet_overrides"`
+}
+
+var deviceDataSourceConfigNetworkAttrTypes = map[string]attr.Type{
+	"type":            types.StringType,
+	"ip":              types.StringType,
+	"netmask":         types.StringType,
+	"gateway":         types.StringType,
+	"dns1":            types.StringType,
+	"dns2":            types.StringType,
+	"dnssuffix":       types.StringType,
+	"bonding_enabled": types.BoolType,
+}
+
+var deviceDataSourceOutletAttrTypes = map[string]attr.Type{
+	"index":         types.Int64Type,
+	"name":          types.StringType,
+	"relay_state":   types.BoolType,
+	"cycle_enabled": types.BoolType,
 }
 
 func NewDeviceDataSource() datasource.DataSource {
@@ -90,6 +113,72 @@ func (d *DeviceDataSource) Schema(ctx context.Context, req datasource.SchemaRequ
 			"state": schema.Int64Attribute{
 				Description: "The state of the device: 0=offline, 1=connected, 2=pending.",
 				Computed:    true,
+			},
+			"mgmt_network_id": schema.StringAttribute{
+				Description: "The ID of the network (VLAN) the device uses for management traffic.",
+				Computed:    true,
+			},
+			"config_network": schema.SingleNestedAttribute{
+				Description: "Management IP configuration of the device.",
+				Computed:    true,
+				Attributes: map[string]schema.Attribute{
+					"type": schema.StringAttribute{
+						Description: "Management IP assignment: 'dhcp' or 'static'.",
+						Computed:    true,
+					},
+					"ip": schema.StringAttribute{
+						Description: "Static management IP address.",
+						Computed:    true,
+					},
+					"netmask": schema.StringAttribute{
+						Description: "Static management netmask.",
+						Computed:    true,
+					},
+					"gateway": schema.StringAttribute{
+						Description: "Static management gateway.",
+						Computed:    true,
+					},
+					"dns1": schema.StringAttribute{
+						Description: "Primary DNS server for static management IP.",
+						Computed:    true,
+					},
+					"dns2": schema.StringAttribute{
+						Description: "Secondary DNS server for static management IP.",
+						Computed:    true,
+					},
+					"dnssuffix": schema.StringAttribute{
+						Description: "DNS suffix for static management IP.",
+						Computed:    true,
+					},
+					"bonding_enabled": schema.BoolAttribute{
+						Description: "Whether link aggregation (bonding) of the device's uplinks is enabled.",
+						Computed:    true,
+					},
+				},
+			},
+			"outlet_overrides": schema.ListNestedAttribute{
+				Description: "Outlet configuration overrides for PDUs and other devices with switchable power outlets.",
+				Computed:    true,
+				NestedObject: schema.NestedAttributeObject{
+					Attributes: map[string]schema.Attribute{
+						"index": schema.Int64Attribute{
+							Description: "Outlet index (1-based).",
+							Computed:    true,
+						},
+						"name": schema.StringAttribute{
+							Description: "Outlet name.",
+							Computed:    true,
+						},
+						"relay_state": schema.BoolAttribute{
+							Description: "Whether the outlet relay is on (outlet powered).",
+							Computed:    true,
+						},
+						"cycle_enabled": schema.BoolAttribute{
+							Description: "Whether automatic power cycling of the outlet is enabled.",
+							Computed:    true,
+						},
+					},
+				},
 			},
 		},
 	}
@@ -201,6 +290,50 @@ func (d *DeviceDataSource) sdkToState(ctx context.Context, device *unifi.DeviceC
 	} else {
 		state.State = types.Int64Null()
 	}
+
+	state.MgmtNetworkID = stringValueOrNull(device.MgmtNetworkID)
+
+	if cn := device.ConfigNetwork; cn != nil {
+		obj, objDiags := types.ObjectValue(deviceDataSourceConfigNetworkAttrTypes, map[string]attr.Value{
+			"type":            stringValueOrNull(cn.Type),
+			"ip":              stringValueOrNull(cn.IP),
+			"netmask":         stringValueOrNull(cn.Netmask),
+			"gateway":         stringValueOrNull(cn.Gateway),
+			"dns1":            stringValueOrNull(cn.DNS1),
+			"dns2":            stringValueOrNull(cn.DNS2),
+			"dnssuffix":       stringValueOrNull(cn.DNSSuffix),
+			"bonding_enabled": types.BoolPointerValue(cn.BondingEnabled),
+		})
+		diags.Append(objDiags...)
+		state.ConfigNetwork = obj
+	} else {
+		state.ConfigNetwork = types.ObjectNull(deviceDataSourceConfigNetworkAttrTypes)
+	}
+
+	outlets := make([]attr.Value, 0, len(device.OutletOverrides))
+	for i, raw := range device.OutletOverrides {
+		var oo struct {
+			Index        int     `json:"index"`
+			Name         *string `json:"name"`
+			RelayState   *bool   `json:"relay_state"`
+			CycleEnabled *bool   `json:"cycle_enabled"`
+		}
+		if err := json.Unmarshal(raw, &oo); err != nil {
+			diags.AddError("Invalid Outlet Override", fmt.Sprintf("decoding outlet override %d: %s", i, err))
+			continue
+		}
+		obj, objDiags := types.ObjectValue(deviceDataSourceOutletAttrTypes, map[string]attr.Value{
+			"index":         types.Int64Value(int64(oo.Index)),
+			"name":          types.StringPointerValue(oo.Name),
+			"relay_state":   types.BoolPointerValue(oo.RelayState),
+			"cycle_enabled": types.BoolPointerValue(oo.CycleEnabled),
+		})
+		diags.Append(objDiags...)
+		outlets = append(outlets, obj)
+	}
+	list, listDiags := types.ListValue(types.ObjectType{AttrTypes: deviceDataSourceOutletAttrTypes}, outlets)
+	diags.Append(listDiags...)
+	state.OutletOverrides = list
 
 	return diags
 }

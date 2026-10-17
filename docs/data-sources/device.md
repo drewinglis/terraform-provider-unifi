@@ -23,10 +23,38 @@ Retrieves information about an existing UniFi device (switch, access point, gate
 ### Read-Only
 
 - `adopted` (Boolean) Whether the device has been adopted.
+- `config_network` (Attributes) Management IP configuration of the device. (see [below for nested schema](#nestedatt--config_network))
 - `id` (String) The unique identifier of the device.
 - `ip` (String) The IP address of the device.
+- `mgmt_network_id` (String) The ID of the network (VLAN) the device uses for management traffic.
 - `model` (String) The model of the device (e.g., 'USW-Pro-24-PoE', 'U6-Pro').
+- `outlet_overrides` (Attributes List) Outlet configuration overrides for PDUs and other devices with switchable power outlets. (see [below for nested schema](#nestedatt--outlet_overrides))
 - `site_id` (String) The site ID where the device exists.
 - `state` (Number) The state of the device: 0=offline, 1=connected, 2=pending.
 - `type` (String) The type of device: 'usw' (switch), 'uap' (access point), 'ugw' (gateway), 'udm' (dream machine), 'uxg' (next-gen gateway).
 - `version` (String) The firmware version of the device.
+
+<a id="nestedatt--config_network"></a>
+### Nested Schema for `config_network`
+
+Read-Only:
+
+- `bonding_enabled` (Boolean) Whether link aggregation (bonding) of the device's uplinks is enabled.
+- `dns1` (String) Primary DNS server for static management IP.
+- `dns2` (String) Secondary DNS server for static management IP.
+- `dnssuffix` (String) DNS suffix for static management IP.
+- `gateway` (String) Static management gateway.
+- `ip` (String) Static management IP address.
+- `netmask` (String) Static management netmask.
+- `type` (String) Management IP assignment: 'dhcp' or 'static'.
+
+
+<a id="nestedatt--outlet_overrides"></a>
+### Nested Schema for `outlet_overrides`
+
+Read-Only:
+
+- `cycle_enabled` (Boolean) Whether automatic power cycling of the outlet is enabled.
+- `index` (Number) Outlet index (1-based).
+- `name` (String) Outlet name.
+- `relay_state` (Boolean) Whether the outlet relay is on (outlet powered).

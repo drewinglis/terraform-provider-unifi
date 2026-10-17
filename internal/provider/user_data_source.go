@@ -22,24 +22,26 @@ type UserDataSource struct {
 }
 
 type UserDataSourceModel struct {
-	ID                    types.String `tfsdk:"id"`
-	SiteID                types.String `tfsdk:"site_id"`
-	MAC                   types.String `tfsdk:"mac"`
-	Name                  types.String `tfsdk:"name"`
-	Note                  types.String `tfsdk:"note"`
-	Noted                 types.Bool   `tfsdk:"noted"`
-	UseFixedIP            types.Bool   `tfsdk:"use_fixed_ip"`
-	FixedIP               types.String `tfsdk:"fixed_ip"`
-	NetworkID             types.String `tfsdk:"network_id"`
-	LocalDnsRecord        types.String `tfsdk:"local_dns_record"`
-	LocalDnsRecordEnabled types.Bool   `tfsdk:"local_dns_record_enabled"`
-	UsergroupID           types.String `tfsdk:"usergroup_id"`
-	Blocked               types.Bool   `tfsdk:"blocked"`
-	IP                    types.String `tfsdk:"ip"`
-	Hostname              types.String `tfsdk:"hostname"`
-	OUI                   types.String `tfsdk:"oui"`
-	FirstSeen             types.Int64  `tfsdk:"first_seen"`
-	LastSeen              types.Int64  `tfsdk:"last_seen"`
+	ID                            types.String `tfsdk:"id"`
+	SiteID                        types.String `tfsdk:"site_id"`
+	MAC                           types.String `tfsdk:"mac"`
+	Name                          types.String `tfsdk:"name"`
+	Note                          types.String `tfsdk:"note"`
+	Noted                         types.Bool   `tfsdk:"noted"`
+	UseFixedIP                    types.Bool   `tfsdk:"use_fixed_ip"`
+	FixedIP                       types.String `tfsdk:"fixed_ip"`
+	NetworkID                     types.String `tfsdk:"network_id"`
+	LocalDnsRecord                types.String `tfsdk:"local_dns_record"`
+	LocalDnsRecordEnabled         types.Bool   `tfsdk:"local_dns_record_enabled"`
+	UsergroupID                   types.String `tfsdk:"usergroup_id"`
+	Blocked                       types.Bool   `tfsdk:"blocked"`
+	VirtualNetworkOverrideEnabled types.Bool   `tfsdk:"virtual_network_override_enabled"`
+	VirtualNetworkOverrideID      types.String `tfsdk:"virtual_network_override_id"`
+	IP                            types.String `tfsdk:"ip"`
+	Hostname                      types.String `tfsdk:"hostname"`
+	OUI                           types.String `tfsdk:"oui"`
+	FirstSeen                     types.Int64  `tfsdk:"first_seen"`
+	LastSeen                      types.Int64  `tfsdk:"last_seen"`
 }
 
 func NewUserDataSource() datasource.DataSource {
@@ -109,6 +111,15 @@ func (d *UserDataSource) Schema(ctx context.Context, req datasource.SchemaReques
 			},
 			"blocked": schema.BoolAttribute{
 				Description: "Whether the device is blocked from network access.",
+				Computed:    true,
+			},
+			"virtual_network_override_enabled": schema.BoolAttribute{
+				Description: "Whether this client is placed on virtual_network_override_id instead of the " +
+					"network of the WLAN or switch port it connects through.",
+				Computed: true,
+			},
+			"virtual_network_override_id": schema.StringAttribute{
+				Description: "The network ID this client is placed on when virtual_network_override_enabled is true.",
 				Computed:    true,
 			},
 			"ip": schema.StringAttribute{
@@ -250,6 +261,14 @@ func (d *UserDataSource) sdkToState(user *unifi.User, state *UserDataSourceModel
 	} else {
 		state.Blocked = types.BoolNull()
 	}
+
+	if user.VirtualNetworkOverrideEnabled != nil {
+		state.VirtualNetworkOverrideEnabled = types.BoolValue(*user.VirtualNetworkOverrideEnabled)
+	} else {
+		state.VirtualNetworkOverrideEnabled = types.BoolNull()
+	}
+
+	state.VirtualNetworkOverrideID = stringValueOrNull(user.VirtualNetworkOverrideID)
 
 	state.IP = stringValueOrNull(user.IP)
 	state.Hostname = stringValueOrNull(user.Hostname)
