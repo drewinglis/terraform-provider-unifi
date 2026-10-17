@@ -523,11 +523,56 @@ func (r *DevicePortOverrideResource) findPortOverride(overrides []unifi.PortOver
 func (r *DevicePortOverrideResource) mergePortOverride(overrides []unifi.PortOverride, newOverride *unifi.PortOverride, portIdx int) []unifi.PortOverride {
 	for i := range overrides {
 		if overrides[i].PortIdx != nil && *overrides[i].PortIdx == portIdx {
-			overrides[i] = *newOverride
+			merged := *newOverride
+			keepUnmanagedPortOverrideFields(&merged, &overrides[i])
+			overrides[i] = merged
 			return overrides
 		}
 	}
 	return append(overrides, *newOverride)
+}
+
+// keepUnmanagedPortOverrideFields copies onto a port override built from the
+// plan the controller values this resource has no attribute for. The device
+// update replaces port_overrides wholesale, so anything left out is reset.
+func keepUnmanagedPortOverrideFields(dst, existing *unifi.PortOverride) {
+	dst.Extra = existing.Extra
+	if dst.LagIdx == nil {
+		dst.LagIdx = existing.LagIdx
+	}
+	if dst.Forward == "" {
+		dst.Forward = existing.Forward
+	}
+	if dst.TaggedVlanMgmt == "" {
+		dst.TaggedVlanMgmt = existing.TaggedVlanMgmt
+	}
+	if dst.LldpmedEnabled == nil {
+		dst.LldpmedEnabled = existing.LldpmedEnabled
+	}
+	if dst.PortKeepaliveEnabled == nil {
+		dst.PortKeepaliveEnabled = existing.PortKeepaliveEnabled
+	}
+	if dst.StormctrlBcastEnabled == nil {
+		dst.StormctrlBcastEnabled = existing.StormctrlBcastEnabled
+	}
+	if dst.StormctrlBcastRate == nil {
+		dst.StormctrlBcastRate = existing.StormctrlBcastRate
+	}
+	if dst.StormctrlMcastEnabled == nil {
+		dst.StormctrlMcastEnabled = existing.StormctrlMcastEnabled
+	}
+	if dst.StormctrlMcastRate == nil {
+		dst.StormctrlMcastRate = existing.StormctrlMcastRate
+	}
+	if dst.StormctrlUcastEnabled == nil {
+		dst.StormctrlUcastEnabled = existing.StormctrlUcastEnabled
+	}
+	if dst.StormctrlUcastRate == nil {
+		dst.StormctrlUcastRate = existing.StormctrlUcastRate
+	}
+	if dst.MulticastRouterNetworkconfIDs == nil {
+		dst.MulticastRouterNetworkconfIDs = existing.MulticastRouterNetworkconfIDs
+	}
 }
 
 func (r *DevicePortOverrideResource) removePortOverride(overrides []unifi.PortOverride, portIdx int) []unifi.PortOverride {
