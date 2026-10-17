@@ -114,13 +114,10 @@ Optional:
 <a id="nestedatt--outlet_overrides"></a>
 ### Nested Schema for `outlet_overrides`
 
-Required:
-
-- `index` (Number) Outlet index (1-based).
-
 Optional:
 
 - `cycle_enabled` (Boolean) Enable automatic power cycling of the outlet when the connected device stops responding.
+- `index` (Number) Outlet index (1-based). Required.
 - `name` (String) Outlet name.
 - `relay_state` (Boolean) Whether the outlet relay is on (outlet powered).
 
