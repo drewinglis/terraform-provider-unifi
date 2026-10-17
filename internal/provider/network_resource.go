@@ -115,6 +115,7 @@ type NetworkResourceModel struct {
 	// Network Access
 	InternetAccessEnabled     types.Bool `tfsdk:"internet_access_enabled"`
 	IntraNetworkAccessEnabled types.Bool `tfsdk:"intra_network_access_enabled"`
+	NetworkIsolationEnabled   types.Bool `tfsdk:"network_isolation_enabled"`
 	NATEnabled                types.Bool `tfsdk:"nat_enabled"`
 	MDNSEnabled               types.Bool `tfsdk:"mdns_enabled"`
 	UPnPLANEnabled            types.Bool `tfsdk:"upnp_lan_enabled"`
@@ -342,9 +343,20 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Default:     booldefault.StaticBool(true),
 			},
 			"intra_network_access_enabled": schema.BoolAttribute{
-				Description: "Whether devices on this network can communicate with devices on other networks.",
-				Optional:    true,
-				Computed:    true,
+				Description: "Not stored by current controllers. Use network_isolation_enabled instead.",
+				DeprecationMessage: "The controller ignores intra_network_access_enabled. " +
+					"Use network_isolation_enabled instead.",
+				Optional: true,
+				Computed: true,
+				PlanModifiers: []planmodifier.Bool{
+					boolplanmodifier.UseStateForUnknown(),
+				},
+			},
+			"network_isolation_enabled": schema.BoolAttribute{
+				Description: "Whether the network is isolated, blocking its traffic to and from other local networks " +
+					"(the UI's \"Isolate Network\" setting).",
+				Optional: true,
+				Computed: true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
 				},
@@ -809,7 +821,12 @@ func (r *NetworkResource) planToSDK(ctx context.Context, plan *NetworkResourceMo
 
 	// Network Access
 	network.InternetAccessEnabled = boolPtr(plan.InternetAccessEnabled.ValueBool())
-	network.IntraNetworkAccessEnabled = boolPtr(plan.IntraNetworkAccessEnabled.ValueBool())
+	if !plan.IntraNetworkAccessEnabled.IsNull() && !plan.IntraNetworkAccessEnabled.IsUnknown() {
+		network.IntraNetworkAccessEnabled = boolPtr(plan.IntraNetworkAccessEnabled.ValueBool())
+	}
+	if !plan.NetworkIsolationEnabled.IsNull() && !plan.NetworkIsolationEnabled.IsUnknown() {
+		network.NetworkIsolationEnabled = boolPtr(plan.NetworkIsolationEnabled.ValueBool())
+	}
 	network.IsNAT = boolPtr(plan.NATEnabled.ValueBool())
 	// Skip when unknown so we don't force the controller default — the schema
 	// marks these Optional+Computed, so an omitted attribute resolves to
@@ -968,6 +985,11 @@ func (r *NetworkResource) sdkToState(ctx context.Context, network *unifi.Network
 	// Network Access
 	state.InternetAccessEnabled = types.BoolValue(derefBool(network.InternetAccessEnabled))
 	state.IntraNetworkAccessEnabled = types.BoolValue(derefBool(network.IntraNetworkAccessEnabled))
+	if network.NetworkIsolationEnabled != nil {
+		state.NetworkIsolationEnabled = types.BoolValue(*network.NetworkIsolationEnabled)
+	} else {
+		state.NetworkIsolationEnabled = types.BoolNull()
+	}
 	state.NATEnabled = types.BoolValue(derefBool(network.IsNAT))
 	state.MDNSEnabled = types.BoolValue(derefBool(network.MDNSEnabled))
 	state.UPnPLANEnabled = types.BoolValue(derefBool(network.UpnpLANEnabled))

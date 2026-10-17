@@ -588,8 +588,7 @@ func TestAccNetworkResource_networkAccess(t *testing.T) {
 				Check: resource.ComposeAggregateTestCheckFunc(
 					resource.TestCheckResourceAttr("unifi_network.test", "name", "tf-acc-test-network-access"),
 					resource.TestCheckResourceAttr("unifi_network.test", "internet_access_enabled", "false"),
-					// intra_network_access_enabled may not be supported on all controller types
-					resource.TestCheckResourceAttrSet("unifi_network.test", "intra_network_access_enabled"),
+					resource.TestCheckResourceAttr("unifi_network.test", "network_isolation_enabled", "true"),
 				),
 			},
 			{
@@ -762,15 +761,15 @@ func testAccNetworkResourceConfig_networkAccess(name string, vlanID int) string 
 %s
 
 resource "unifi_network" "test" {
-  name                         = %q
-  purpose                      = "corporate"
-  vlan_id                      = %d
-  subnet                       = "10.%d.0.1/24"
-  dhcp_enabled                 = true
-  dhcp_start                   = "10.%d.0.10"
-  dhcp_stop                    = "10.%d.0.254"
-  internet_access_enabled      = false
-  intra_network_access_enabled = false
+  name                      = %q
+  purpose                   = "corporate"
+  vlan_id                   = %d
+  subnet                    = "10.%d.0.1/24"
+  dhcp_enabled              = true
+  dhcp_start                = "10.%d.0.10"
+  dhcp_stop                 = "10.%d.0.254"
+  internet_access_enabled   = false
+  network_isolation_enabled = true
 }
 `, testAccProviderConfig, name, vlanID, vlanID%256, vlanID%256, vlanID%256)
 }

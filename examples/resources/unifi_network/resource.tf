@@ -17,3 +17,12 @@ resource "unifi_network" "vlan_only" {
   purpose = "vlan-only"
   vlan_id = 200
 }
+
+# An isolated network: its clients can reach the internet but no other local network
+resource "unifi_network" "work_jail" {
+  name                      = "Work Jail"
+  purpose                   = "corporate"
+  subnet                    = "10.0.12.1/24"
+  vlan_id                   = 12
+  network_isolation_enabled = true
+}

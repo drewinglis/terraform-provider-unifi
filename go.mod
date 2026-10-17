@@ -86,3 +86,5 @@ require (
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+replace github.com/resnickio/unifi-go-sdk => github.com/drewinglis/unifi-go-sdk v0.0.0-20261016232019-6e77aa2752a9
