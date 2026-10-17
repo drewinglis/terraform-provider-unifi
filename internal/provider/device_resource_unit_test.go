@@ -1,9 +1,13 @@
 package provider
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 
+	"github.com/hashicorp/terraform-plugin-framework/attr"
+	"github.com/hashicorp/terraform-plugin-framework/path"
+	"github.com/hashicorp/terraform-plugin-framework/schema/validator"
 	"github.com/hashicorp/terraform-plugin-framework/types"
 )
 
@@ -81,5 +85,38 @@ func TestOutletOverridesToSDK(t *testing.T) {
 		if string(raw[i]) != want[i] {
 			t.Errorf("override %d = %s, want %s", i, raw[i], want[i])
 		}
+	}
+}
+
+func TestOutletIndexRequired(t *testing.T) {
+	elemType := types.ObjectType{AttrTypes: outletOverrideAttrTypes}
+	outlet := func(index types.Int64) attr.Value {
+		return types.ObjectValueMust(outletOverrideAttrTypes, map[string]attr.Value{
+			"index":         index,
+			"name":          types.StringValue("outlet"),
+			"relay_state":   types.BoolNull(),
+			"cycle_enabled": types.BoolNull(),
+		})
+	}
+	cases := []struct {
+		name    string
+		value   types.List
+		wantErr bool
+	}{
+		{"null list", types.ListNull(elemType), false},
+		{"index set", types.ListValueMust(elemType, []attr.Value{outlet(types.Int64Value(1))}), false},
+		{"index missing", types.ListValueMust(elemType, []attr.Value{outlet(types.Int64Null())}), true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp := &validator.ListResponse{}
+			outletIndexRequired{}.ValidateList(context.Background(), validator.ListRequest{
+				Path:        path.Root("outlet_overrides"),
+				ConfigValue: tc.value,
+			}, resp)
+			if got := resp.Diagnostics.HasError(); got != tc.wantErr {
+				t.Errorf("HasError = %v, want %v (%v)", got, tc.wantErr, resp.Diagnostics)
+			}
+		})
 	}
 }
