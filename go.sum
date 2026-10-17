@@ -35,8 +35,8 @@ github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSs
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1VwoXQT9A3Wy9MM3WgvqSxFWenqJduM=
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/drewinglis/unifi-go-sdk v0.0.0-20261016164535-4711939cc844 h1:YvvNlE4GUSyWS0kWT5vLlE7GLlYA+Pq13ncu2v8wV2k=
-github.com/drewinglis/unifi-go-sdk v0.0.0-20261016164535-4711939cc844/go.mod h1:BL781gsjkhVm1L8Ajjog8OYJ2TFcA9JoOo8IjowFySU=
+github.com/drewinglis/unifi-go-sdk v0.0.0-20261017004347-001adac63f6f h1:ytHJMCjqxfOJ/6MOuIXRSt3L9wRW/JJ4I6FNGD37sUU=
+github.com/drewinglis/unifi-go-sdk v0.0.0-20261017004347-001adac63f6f/go.mod h1:BL781gsjkhVm1L8Ajjog8OYJ2TFcA9JoOo8IjowFySU=
 github.com/emirpasic/gods v1.18.1 h1:FXtiHYKDGKCW2KzwZKx0iC0PQmdlorYgdFG9jPXJ1Bc=
 github.com/emirpasic/gods v1.18.1/go.mod h1:8tpGGwCnJ5H4r6BWwaV6OrWmMoPhUl5jm/FMNAnJvWQ=
 github.com/fatih/color v1.13.0/go.mod h1:kLAiJbzzSOZDVNGyDpeOxJ47H46qBXwg5ILebYFFOfk=

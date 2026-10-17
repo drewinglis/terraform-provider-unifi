@@ -186,13 +186,12 @@ func TestNetworkPlanToSDKCorporateSendsLANSettings(t *testing.T) {
 	m := planToSDKJSON(t, plan)
 
 	want := map[string]any{
-		"enabled":                      true,
-		"dhcpd_enabled":                true,
-		"igmp_snooping":                false,
-		"internet_access_enabled":      true,
-		"intra_network_access_enabled": false,
-		"is_nat":                       true,
-		"networkgroup":                 "LAN",
+		"enabled":                 true,
+		"dhcpd_enabled":           true,
+		"igmp_snooping":           false,
+		"internet_access_enabled": true,
+		"is_nat":                  true,
+		"networkgroup":            "LAN",
 	}
 	for k, v := range want {
 		if m[k] != v {
@@ -201,5 +200,8 @@ func TestNetworkPlanToSDKCorporateSendsLANSettings(t *testing.T) {
 	}
 	if _, ok := m["wan_type"]; ok {
 		t.Error("wan_type sent for a LAN network")
+	}
+	if _, ok := m["intra_network_access_enabled"]; ok {
+		t.Error("unset intra_network_access_enabled was sent")
 	}
 }

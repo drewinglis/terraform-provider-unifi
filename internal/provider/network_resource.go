@@ -125,8 +125,8 @@ type NetworkResourceModel struct {
 	LteLANEnabled             types.Bool `tfsdk:"lte_lan_enabled"`
 
 	// Routing
-	NetworkGroup   types.String `tfsdk:"network_group"`
-	FirewallZoneID types.String `tfsdk:"firewall_zone_id"`
+	NetworkGroup      types.String `tfsdk:"network_group"`
+	FirewallZoneID    types.String `tfsdk:"firewall_zone_id"`
 	GatewayType       types.String `tfsdk:"gateway_type"`
 	SettingPreference types.String `tfsdk:"setting_preference"`
 
@@ -401,13 +401,14 @@ func (r *NetworkResource) Schema(ctx context.Context, req resource.SchemaRequest
 				Computed: true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
+					wanNetworkUseState{},
 				},
 			},
 			"network_isolation_enabled": schema.BoolAttribute{
 				Description: "Whether the network is isolated, blocking its traffic to and from other local networks " +
 					"(the UI's \"Isolate Network\" setting).",
-				Optional:    true,
-				Computed:    true,
+				Optional: true,
+				Computed: true,
 				PlanModifiers: []planmodifier.Bool{
 					boolplanmodifier.UseStateForUnknown(),
 					wanNetworkUseState{},
@@ -1059,15 +1060,13 @@ func (r *NetworkResource) planToSDK(ctx context.Context, plan *NetworkResourceMo
 	if sendLAN(plan.InternetAccessEnabled) {
 		network.InternetAccessEnabled = boolPtr(plan.InternetAccessEnabled.ValueBool())
 	}
-	if sendLAN(plan.IntraNetworkAccessEnabled) {
 	if !plan.IntraNetworkAccessEnabled.IsNull() && !plan.IntraNetworkAccessEnabled.IsUnknown() {
 		network.IntraNetworkAccessEnabled = boolPtr(plan.IntraNetworkAccessEnabled.ValueBool())
-	}
-	if sendLAN(plan.NATEnabled) {
 	}
 	if !plan.NetworkIsolationEnabled.IsNull() && !plan.NetworkIsolationEnabled.IsUnknown() {
 		network.NetworkIsolationEnabled = boolPtr(plan.NetworkIsolationEnabled.ValueBool())
 	}
+	if sendLAN(plan.NATEnabled) {
 		network.IsNAT = boolPtr(plan.NATEnabled.ValueBool())
 	}
 	// Skip when unknown so we don't force the controller default — the schema
