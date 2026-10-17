@@ -312,11 +312,19 @@ func (r *DeviceResource) Schema(ctx context.Context, req resource.SchemaRequest,
 				Description: "Outlet configuration overrides for PDUs and other devices with switchable power outlets.",
 				Optional:    true,
 				Computed:    true,
+				Validators: []validator.List{
+					outletIndexRequired{},
+				},
 				NestedObject: schema.NestedAttributeObject{
 					Attributes: map[string]schema.Attribute{
+						// Required in practice (see outletIndexRequired), but declared
+						// Optional+Computed: a Required attribute nested in a Computed one
+						// makes Terraform propose null for it whenever outlet_overrides is
+						// omitted, which plans a spurious update on every PDU.
 						"index": schema.Int64Attribute{
-							Description: "Outlet index (1-based).",
-							Required:    true,
+							Description: "Outlet index (1-based). Required.",
+							Optional:    true,
+							Computed:    true,
 						},
 						"name": schema.StringAttribute{
 							Description: "Outlet name.",
@@ -889,4 +897,34 @@ func (r *DeviceResource) sdkToState(ctx context.Context, device *unifi.DeviceCon
 	state.OutletOverrides = outlets
 
 	return diags
+}
+
+// outletIndexRequired errors when a configured outlet override has no index.
+type outletIndexRequired struct{}
+
+func (v outletIndexRequired) Description(ctx context.Context) string {
+	return "each outlet override must set index"
+}
+
+func (v outletIndexRequired) MarkdownDescription(ctx context.Context) string {
+	return v.Description(ctx)
+}
+
+func (v outletIndexRequired) ValidateList(ctx context.Context, req validator.ListRequest, resp *validator.ListResponse) {
+	if req.ConfigValue.IsNull() || req.ConfigValue.IsUnknown() {
+		return
+	}
+	for i, elem := range req.ConfigValue.Elements() {
+		obj, ok := elem.(types.Object)
+		if !ok || obj.IsUnknown() {
+			continue
+		}
+		if index, ok := obj.Attributes()["index"].(types.Int64); ok && index.IsNull() {
+			resp.Diagnostics.AddAttributeError(
+				req.Path.AtListIndex(i).AtName("index"),
+				"Missing outlet index",
+				"Each outlet_overrides entry must set index.",
+			)
+		}
+	}
 }
