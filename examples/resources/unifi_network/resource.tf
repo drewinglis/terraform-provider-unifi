@@ -33,3 +33,12 @@ resource "unifi_network" "internet_2" {
   wan_load_balance_type = "failover-only"
   wan_failover_priority = 2
 }
+
+# An isolated network: its clients can reach the internet but no other local network
+resource "unifi_network" "work_jail" {
+  name                      = "Work Jail"
+  purpose                   = "corporate"
+  subnet                    = "10.0.12.1/24"
+  vlan_id                   = 12
+  network_isolation_enabled = true
+}
