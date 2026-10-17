@@ -72,6 +72,7 @@ output "network_vlan" {
 - `mdns_enabled` (Boolean) Whether mDNS (Bonjour/Avahi) is enabled for this network.
 - `nat_enabled` (Boolean) Whether NAT is enabled for this network.
 - `network_group` (String) The network group (LAN, WAN, WAN2). Null for WAN networks, which use wan_network_group.
+- `network_isolation_enabled` (Boolean) Whether the network is isolated from other local networks.
 - `purpose` (String) The purpose of the network (corporate, guest, wan, vlan-only).
 - `report_wan_event` (Boolean) Whether the controller reports events (e.g. failover) for this WAN.
 - `routing_table_id` (Number) The routing table the controller assigned to this WAN.
